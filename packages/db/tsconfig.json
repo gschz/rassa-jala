@@ -1,0 +1,6 @@
+{
+  "extends": "@rassa-jala/config/tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true
+  }
+}

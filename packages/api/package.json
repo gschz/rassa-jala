@@ -1,0 +1,22 @@
+{
+  "name": "@rassa-jala/api",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@prisma/client": "catalog:",
+    "@rassa-jala/db": "workspace:*",
+    "@trpc/client": "catalog:",
+    "@trpc/server": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@rassa-jala/config": "workspace:*",
+    "typescript": "catalog:"
+  }
+}
