@@ -15,16 +15,13 @@
     "@rassa-jala/api": "workspace:*",
     "@rassa-jala/db": "workspace:*",
     "@trpc/server": "catalog:",
-    "cors": "^2.8.6",
-    "express": "^5.2.1",
+    "hono": "^4.10.7",
     "varlock": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@rassa-jala/config": "workspace:*",
     "@types/bun": "catalog:",
-    "@types/cors": "^2.8.19",
-    "@types/express": "^5.0.6",
     "tsdown": "^0.23.0",
     "typescript": "catalog:"
   }

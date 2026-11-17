@@ -1,34 +1,41 @@
+import { trpcServer } from "@hono/trpc-server";
+import { Hono } from "hono";
+import { cors } from "hono/cors";
+
 import { appRouter } from "@rassa-jala/api/routers/index";
-import { createExpressMiddleware } from "@trpc/server/adapters/express";
-import cors from "cors";
-import express from "express";
 
 import { createContext } from "./context";
 import { ENV } from "./env.server";
 
-const app = express();
+const app = new Hono();
 
 app.use(
+  "/trpc/*",
   cors({
     origin: ENV.CORS_ORIGIN,
-    methods: ["GET", "POST", "OPTIONS"],
+    allowMethods: ["GET", "POST", "OPTIONS"],
   }),
 );
 
 app.use(
-  "/trpc",
-  createExpressMiddleware({
+  "/trpc/*",
+  trpcServer({
     router: appRouter,
     createContext,
   }),
 );
 
-app.use(express.json());
-
-app.get("/", (_req, res) => {
-  res.status(200).send("OK");
+app.get("/", (c) => {
+  return c.text("OK");
 });
 
-app.listen(3000, () => {
-  console.log("Server is running on http://localhost:3000");
+// slice-decision: PORT is not part of the varlock schema; plain process env with the scaffold's
+// default of 3000.
+const port = process.env.PORT ? Number(process.env.PORT) : 3000;
+
+Bun.serve({
+  port,
+  fetch: app.fetch,
 });
+
+console.log(`Server is running on http://localhost:${port}`);
