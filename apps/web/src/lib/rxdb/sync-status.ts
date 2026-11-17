@@ -28,17 +28,13 @@ const EMPTY_STATUS: ColeccionSyncStatus = {
   checkpoint: null,
 };
 
-const COLECCIONES: readonly Coleccion[] = [
-  "municipios",
-  "localidades",
-  "categorias",
-  "unidades",
-];
+const COLECCIONES: readonly Coleccion[] = ["municipios", "localidades", "categorias", "unidades"];
 
 let state: SyncStatusState = {
-  collections: Object.fromEntries(
-    COLECCIONES.map((c) => [c, EMPTY_STATUS]),
-  ) as Record<Coleccion, ColeccionSyncStatus>,
+  collections: Object.fromEntries(COLECCIONES.map((c) => [c, EMPTY_STATUS])) as Record<
+    Coleccion,
+    ColeccionSyncStatus
+  >,
   pendingLocalidadIds: [],
 };
 
@@ -64,10 +60,7 @@ export function useSyncStatus(): SyncStatusState {
   return useSyncExternalStore(subscribeSyncStatus, getSyncStatus);
 }
 
-export function patchStatus(
-  coleccion: Coleccion,
-  patch: Partial<ColeccionSyncStatus>,
-): void {
+export function patchStatus(coleccion: Coleccion, patch: Partial<ColeccionSyncStatus>): void {
   const merged = { ...state.collections[coleccion], ...patch };
   setState({
     ...state,

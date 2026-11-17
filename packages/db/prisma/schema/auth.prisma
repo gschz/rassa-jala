@@ -1,0 +1,75 @@
+// Auth/identity domain — normative sources: docs/database.md §3.1 (roles, persona, usuario
+// inventory and FK policy), §5.3 P-1 (UUID PKs + legacy_id), §7.1 M-1b (actualizado_en) /
+// M-3 (UUID strategy), docs/synchronization.md §5.2 SP-2 (version), docs/01-audit/
+// backend-audit.md §2 (data-driven roles Admin/Agricultor/Vendedor/Cliente; F-01: login
+// must reject Usuario.estado=false).
+//
+// Identity decision (backend-audit §2.1 / database.md §3.7 note): the legacy Django
+// auth_user row is replaced by the backend's own identity — Usuario carries the login
+// credentials (correo + passwordHash). passwordHash is S4-sensitive
+// (docs/database.md §6.3.7) and must never be emitted to any client.
+
+model Rol {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  legacyId      Int?     @unique @map("legacy_id")
+  nombre        String   @unique
+  estado        Boolean  @default(true)
+  version       Int      @default(1)
+  actualizadoEn DateTime @default(now()) @updatedAt @map("actualizado_en") @db.Timestamptz(6)
+  usuarios      Usuario[]
+
+  @@map("roles")
+}
+
+model Persona {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  legacyId         Int?      @unique @map("legacy_id")
+  nombre           String
+  apellidoPaterno  String    @map("apellido_paterno")
+  apellidoMaterno  String?   @map("apellido_materno")
+  // database.md §3.1: persona carries fk_localidad (SetNull), not fk_municipio.
+  fkLocalidad      String?   @map("fk_localidad") @db.Uuid
+  estado           Boolean   @default(true)
+  version          Int       @default(1)
+  actualizadoEn    DateTime  @default(now()) @updatedAt @map("actualizado_en") @db.Timestamptz(6)
+  localidad        Localidad? @relation(fields: [fkLocalidad], references: [id], onDelete: SetNull)
+  usuario          Usuario?
+
+  @@index([fkLocalidad])
+  @@map("persona")
+}
+
+model Usuario {
+  id             String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  legacyId       Int?          @unique @map("legacy_id")
+  correo         String        @unique
+  // Argon2id hash (Bun.password). Sensitive: never leaves the server (S4, database.md §6.3.7).
+  passwordHash   String        @map("password_hash")
+  fkPersona      String        @unique @map("fk_persona") @db.Uuid
+  fkRol          String        @map("fk_rol") @db.Uuid
+  estado         Boolean       @default(true)
+  version        Int           @default(1)
+  actualizadoEn  DateTime      @default(now()) @updatedAt @map("actualizado_en") @db.Timestamptz(6)
+  persona        Persona       @relation(fields: [fkPersona], references: [id], onDelete: Cascade)
+  rol            Rol           @relation(fields: [fkRol], references: [id], onDelete: Restrict)
+  refreshTokens  RefreshToken[]
+
+  @@index([fkRol])
+  @@map("usuario")
+}
+
+// Session model (F-02/F-03 fix): refresh tokens are stored hashed, rotated on every
+// refresh, revocable (logout / change-password / reuse detection). Server-only (S4):
+// never replicated, never emitted to the client.
+model RefreshToken {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  fkUsuario  String    @map("fk_usuario") @db.Uuid
+  tokenHash  String    @unique @map("token_hash")
+  expiresAt  DateTime  @map("expires_at") @db.Timestamptz(6)
+  revokedAt  DateTime? @map("revoked_at") @db.Timestamptz(6)
+  creadoEn   DateTime  @map("creado_en") @default(now()) @db.Timestamptz(6)
+  usuario    Usuario   @relation(fields: [fkUsuario], references: [id], onDelete: Cascade)
+
+  @@index([fkUsuario])
+  @@map("refresh_token")
+}

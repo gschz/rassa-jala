@@ -23,19 +23,19 @@ never answered by invention.
 
 ### Stack (from `legacy/rassa_back/requirements.txt`)
 
-| Component | Version constraint | Purpose |
-|---|---|---|
-| Django | `>=5.0,<5.1` | Web framework (WSGI only) |
-| Django REST Framework | `>=3.15,<3.16` | REST API layer |
-| SimpleJWT (+ token_blacklist app) | `>=5.3,<5.4` | JWT auth |
-| django-cors-headers | `>=4.3,<4.4` | CORS |
-| psycopg2-binary | `>=2.9,<2.10` | PostgreSQL driver |
-| python-decouple | `>=3.8` | Env/`.env` config |
-| gunicorn | `>=22.0` | Production WSGI server |
-| django-filter | `>=24.0,<25.0` | Filtersets |
-| dj-database-url | `>=2.1,<2.2` | `DATABASE_URL` parsing |
-| google-api-python-client / google-auth / google-auth-oauthlib / google-auth-httplib2 | `>=2.0,<3.0` | Google Drive file storage |
-| python-magic | `>=0.4,<1.0` | MIME sniffing for chat attachments |
+| Component                                                                            | Version constraint | Purpose                            |
+| ------------------------------------------------------------------------------------ | ------------------ | ---------------------------------- |
+| Django                                                                               | `>=5.0,<5.1`       | Web framework (WSGI only)          |
+| Django REST Framework                                                                | `>=3.15,<3.16`     | REST API layer                     |
+| SimpleJWT (+ token_blacklist app)                                                    | `>=5.3,<5.4`       | JWT auth                           |
+| django-cors-headers                                                                  | `>=4.3,<4.4`       | CORS                               |
+| psycopg2-binary                                                                      | `>=2.9,<2.10`      | PostgreSQL driver                  |
+| python-decouple                                                                      | `>=3.8`            | Env/`.env` config                  |
+| gunicorn                                                                             | `>=22.0`           | Production WSGI server             |
+| django-filter                                                                        | `>=24.0,<25.0`     | Filtersets                         |
+| dj-database-url                                                                      | `>=2.1,<2.2`       | `DATABASE_URL` parsing             |
+| google-api-python-client / google-auth / google-auth-oauthlib / google-auth-httplib2 | `>=2.0,<3.0`       | Google Drive file storage          |
+| python-magic                                                                         | `>=0.4,<1.0`       | MIME sniffing for chat attachments |
 
 Dev tooling: pytest/pytest-django/pytest-cov, ruff, pylint+pylint-django, pre-commit
 (`legacy/rassa_back/requirements-dev.txt`, `legacy/rassa_back/pyproject.toml`).
@@ -100,13 +100,13 @@ Single settings file: `legacy/rassa_back/rassa/settings.py`. No settings split
 
 ### 2.2 SimpleJWT configuration (`legacy/rassa_back/rassa/settings.py:165-172`)
 
-| Setting | Value |
-|---|---|
-| ACCESS_TOKEN_LIFETIME | 2 hours |
-| REFRESH_TOKEN_LIFETIME | 7 days |
-| ROTATE_REFRESH_TOKENS | True |
-| AUTH_HEADER_TYPES | Bearer |
-| USER_ID_FIELD | id |
+| Setting                  | Value                       |
+| ------------------------ | --------------------------- |
+| ACCESS_TOKEN_LIFETIME    | 2 hours                     |
+| REFRESH_TOKEN_LIFETIME   | 7 days                      |
+| ROTATE_REFRESH_TOKENS    | True                        |
+| AUTH_HEADER_TYPES        | Bearer                      |
+| USER_ID_FIELD            | id                          |
 | BLACKLIST_AFTER_ROTATION | not set (defaults to False) |
 
 The `token_blacklist` app is installed, so issued refresh tokens are tracked
@@ -114,16 +114,16 @@ The `token_blacklist` app is installed, so issued refresh tokens are tracked
 
 ### 2.3 Auth endpoints
 
-| Method | Path | View | Auth | Notes |
-|---|---|---|---|---|
-| POST | `/api/token/` | `CustomTokenObtainPairView` (`legacy/rassa_back/rassa/urls.py:71-108`) | AllowAny | Email+password login; Spanish ambiguous errors; logs success and failure to `Log`; throttle scope `login` |
-| POST | `/api/token/refresh/` | stock `TokenRefreshView` (`legacy/rassa_back/rassa/urls.py:114`) | AllowAny | Rotation on |
-| POST | `/api/auth/register/` | `RegisterView` (`legacy/rassa_back/rassa/views.py:101-130`) | AllowAny | Public self-registration; role limited to buyer/seller (`legacy/rassa_back/rassa/auth_serializers.py:210`); returns access+refresh |
-| POST | `/api/auth/create-farmer/` | `AdminCreateAgricultorView` (`legacy/rassa_back/rassa/views.py:133-176`) | Admin | Farmer onboarding; token generation failure is non-fatal (ghost-user prevention) |
-| GET/PATCH | `/api/auth/me/` | `MeView` (`legacy/rassa_back/rassa/views.py:179-205`) | IsAuthenticated | Profile read/update (email and role not editable) |
-| POST | `/api/auth/change-password/` | `ChangePasswordView` (`legacy/rassa_back/rassa/views.py:208-238`) | IsAuthenticated | Blacklists supplied refresh token; access tokens stay valid until expiry (documented in docstring) |
-| GET | `/api/auth/search-users/` | `SearchUsersView` (`legacy/rassa_back/rassa/views.py:779-827`) | Admin | Min 3 chars, max 10 results, excludes Admin role, excludes users already in an active family unless `include_assigned` |
-| GET | `/api/auth/health/` | `AuthHealthView` (`legacy/rassa_back/rassa/views.py:241-247`) | AllowAny | Health probe |
+| Method    | Path                         | View                                                                     | Auth            | Notes                                                                                                                              |
+| --------- | ---------------------------- | ------------------------------------------------------------------------ | --------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| POST      | `/api/token/`                | `CustomTokenObtainPairView` (`legacy/rassa_back/rassa/urls.py:71-108`)   | AllowAny        | Email+password login; Spanish ambiguous errors; logs success and failure to `Log`; throttle scope `login`                          |
+| POST      | `/api/token/refresh/`        | stock `TokenRefreshView` (`legacy/rassa_back/rassa/urls.py:114`)         | AllowAny        | Rotation on                                                                                                                        |
+| POST      | `/api/auth/register/`        | `RegisterView` (`legacy/rassa_back/rassa/views.py:101-130`)              | AllowAny        | Public self-registration; role limited to buyer/seller (`legacy/rassa_back/rassa/auth_serializers.py:210`); returns access+refresh |
+| POST      | `/api/auth/create-farmer/`   | `AdminCreateAgricultorView` (`legacy/rassa_back/rassa/views.py:133-176`) | Admin           | Farmer onboarding; token generation failure is non-fatal (ghost-user prevention)                                                   |
+| GET/PATCH | `/api/auth/me/`              | `MeView` (`legacy/rassa_back/rassa/views.py:179-205`)                    | IsAuthenticated | Profile read/update (email and role not editable)                                                                                  |
+| POST      | `/api/auth/change-password/` | `ChangePasswordView` (`legacy/rassa_back/rassa/views.py:208-238`)        | IsAuthenticated | Blacklists supplied refresh token; access tokens stay valid until expiry (documented in docstring)                                 |
+| GET       | `/api/auth/search-users/`    | `SearchUsersView` (`legacy/rassa_back/rassa/views.py:779-827`)           | Admin           | Min 3 chars, max 10 results, excludes Admin role, excludes users already in an active family unless `include_assigned`             |
+| GET       | `/api/auth/health/`          | `AuthHealthView` (`legacy/rassa_back/rassa/views.py:241-247`)            | AllowAny        | Health probe                                                                                                                       |
 
 **There is no logout endpoint** and no dedicated token-blacklist endpoint; the only
 blacklist trigger is the optional `refresh_token` field on change-password.
@@ -147,12 +147,12 @@ blacklist trigger is the optional `refresh_token` field on change-password.
 
 **Per-role access summary (Confirmed, from `get_permissions`/`get_queryset` per module):**
 
-| Role | Access highlights |
-|---|---|
-| Admin | Everything; full user management (`/api/admin/usuarios/*`); liquidaciones; merma resumen; logs; catalog writes; familia management |
-| Vendedor | Pedidos (list/retrieve/transition, assigned to them), pagos (create for their pedidos), mermas (their pedidos), cortes (their own), recolecciones (write), chat |
-| Agricultor | Own publicaciones + weekly products (Monday-only), own recolecciones (read-only), product image management for products they have published |
-| Cliente | Create pedidos, view own pedidos/payments, chat; no estado transitions, no recolección visibility (empty queryset by design, `legacy/rassa_back/rassa/blueprints/recoleccion/views.py:234-242`) |
+| Role       | Access highlights                                                                                                                                                                               |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Admin      | Everything; full user management (`/api/admin/usuarios/*`); liquidaciones; merma resumen; logs; catalog writes; familia management                                                              |
+| Vendedor   | Pedidos (list/retrieve/transition, assigned to them), pagos (create for their pedidos), mermas (their pedidos), cortes (their own), recolecciones (write), chat                                 |
+| Agricultor | Own publicaciones + weekly products (Monday-only), own recolecciones (read-only), product image management for products they have published                                                     |
+| Cliente    | Create pedidos, view own pedidos/payments, chat; no estado transitions, no recolección visibility (empty queryset by design, `legacy/rassa_back/rassa/blueprints/recoleccion/views.py:234-242`) |
 
 **Ownership special case** (`legacy/rassa_back/rassa/permissions/ownership.py:12-43`):
 an Agricultor may only manage images of products for which they have at least one
@@ -202,21 +202,21 @@ patch_me, change_password, create_farmer, search_users, search_users_include_ass
 `legacy/rassa_back/bruno/usuarios_admin/` (8 files: listar, detalle, editar, filtrar_rol,
 filtrar_estado, toggle_estado, buscar).
 
-| Method(s) | Path | View | Auth / Permission | CRUD coverage |
-|---|---|---|---|---|
-| POST | `/api/token/` | CustomTokenObtainPairView | AllowAny | login |
-| POST | `/api/token/refresh/` | TokenRefreshView | AllowAny | refresh |
-| POST | `/api/auth/register/` | RegisterView | AllowAny | create (buyer/seller only) |
-| POST | `/api/auth/create-farmer/` | AdminCreateAgricultorView | Admin | create (farmer) |
-| GET, PATCH | `/api/auth/me/` | MeView | IsAuthenticated | retrieve / partial update |
-| POST | `/api/auth/change-password/` | ChangePasswordView | IsAuthenticated | change password |
-| GET | `/api/auth/search-users/` | SearchUsersView | Admin | search |
-| GET | `/api/auth/health/` | AuthHealthView | AllowAny | health |
-| GET | `/api/admin/usuarios/` | `AdminUsuarioViewSet.list` (`legacy/rassa_back/rassa/admin_views.py:124-184`) | Admin | list (search/rol/estado filters, paginated) |
-| GET | `/api/admin/usuarios/{id}/` | `AdminUsuarioViewSet.retrieve` (`admin_views.py:186-203`) | Admin | retrieve |
-| PATCH | `/api/admin/usuarios/{id}/` | `AdminUsuarioViewSet.partial_update` (`admin_views.py:205-262`) | Admin | partial update (persona fields, telefono, role) |
-| PATCH | `/api/admin/usuarios/{id}/toggle-estado/` | `AdminUsuarioViewSet.toggle_estado` (`admin_views.py:264-319`) | Admin | activate/deactivate |
-| GET | `/api/logs/`, `/api/logs/{id}/` | `ActivityLogViewSet` (`legacy/rassa_back/logs/urls.py`, `logs/views.py:19-36`) | Admin | list/retrieve of audit log |
+| Method(s)  | Path                                      | View                                                                           | Auth / Permission | CRUD coverage                                   |
+| ---------- | ----------------------------------------- | ------------------------------------------------------------------------------ | ----------------- | ----------------------------------------------- |
+| POST       | `/api/token/`                             | CustomTokenObtainPairView                                                      | AllowAny          | login                                           |
+| POST       | `/api/token/refresh/`                     | TokenRefreshView                                                               | AllowAny          | refresh                                         |
+| POST       | `/api/auth/register/`                     | RegisterView                                                                   | AllowAny          | create (buyer/seller only)                      |
+| POST       | `/api/auth/create-farmer/`                | AdminCreateAgricultorView                                                      | Admin             | create (farmer)                                 |
+| GET, PATCH | `/api/auth/me/`                           | MeView                                                                         | IsAuthenticated   | retrieve / partial update                       |
+| POST       | `/api/auth/change-password/`              | ChangePasswordView                                                             | IsAuthenticated   | change password                                 |
+| GET        | `/api/auth/search-users/`                 | SearchUsersView                                                                | Admin             | search                                          |
+| GET        | `/api/auth/health/`                       | AuthHealthView                                                                 | AllowAny          | health                                          |
+| GET        | `/api/admin/usuarios/`                    | `AdminUsuarioViewSet.list` (`legacy/rassa_back/rassa/admin_views.py:124-184`)  | Admin             | list (search/rol/estado filters, paginated)     |
+| GET        | `/api/admin/usuarios/{id}/`               | `AdminUsuarioViewSet.retrieve` (`admin_views.py:186-203`)                      | Admin             | retrieve                                        |
+| PATCH      | `/api/admin/usuarios/{id}/`               | `AdminUsuarioViewSet.partial_update` (`admin_views.py:205-262`)                | Admin             | partial update (persona fields, telefono, role) |
+| PATCH      | `/api/admin/usuarios/{id}/toggle-estado/` | `AdminUsuarioViewSet.toggle_estado` (`admin_views.py:264-319`)                 | Admin             | activate/deactivate                             |
+| GET        | `/api/logs/`, `/api/logs/{id}/`           | `ActivityLogViewSet` (`legacy/rassa_back/logs/urls.py`, `logs/views.py:19-36`) | Admin             | list/retrieve of audit log                      |
 
 No user **delete** endpoint exists (only `estado` toggle); no user **create-seller** endpoint (public register covers seller).
 
@@ -224,20 +224,20 @@ No user **delete** endpoint exists (only `estado` toggle); no user **create-sell
 
 Views in `legacy/rassa_back/rassa/views.py:465-773`. Bruno: `legacy/rassa_back/bruno/catalogos/` (17 files).
 
-| Method(s) | Path | Permission | CRUD coverage |
-|---|---|---|---|
-| GET, POST | `/api/municipios/` | public read (AllowAny) / Admin write | list, create |
-| GET | `/api/municipios/trash/` | public read | trash list (soft-deleted) |
-| GET, PUT, PATCH, DELETE | `/api/municipios/{id}/` | IsAuthenticated read / Admin write | retrieve, update, **soft delete** |
-| POST | `/api/municipios/{id}/restore/` | Admin | restore |
-| PATCH | `/api/municipios/{id}/estado/` | Admin | activate/deactivate |
-| POST | `/api/municipios/{id}/permanent/` | Admin | hard delete (blocked if localidades exist, `views.py:746-766`) |
-| GET, POST | `/api/municipios/{id}/localidades/` and `/api/localidades/` | public read / Admin write | list (by municipio), create |
-| GET | `/api/localidades/trash/` | public read | trash list |
-| GET, PUT, PATCH, DELETE | `/api/localidades/{id}/` | IsAuthenticated / Admin | retrieve, update, soft delete |
-| POST | `/api/localidades/{id}/restore/` | Admin | restore |
-| PATCH | `/api/localidades/{id}/estado/` | Admin | activate/deactivate |
-| POST | `/api/localidades/{id}/permanent/` | Admin | hard delete |
+| Method(s)               | Path                                                        | Permission                           | CRUD coverage                                                  |
+| ----------------------- | ----------------------------------------------------------- | ------------------------------------ | -------------------------------------------------------------- |
+| GET, POST               | `/api/municipios/`                                          | public read (AllowAny) / Admin write | list, create                                                   |
+| GET                     | `/api/municipios/trash/`                                    | public read                          | trash list (soft-deleted)                                      |
+| GET, PUT, PATCH, DELETE | `/api/municipios/{id}/`                                     | IsAuthenticated read / Admin write   | retrieve, update, **soft delete**                              |
+| POST                    | `/api/municipios/{id}/restore/`                             | Admin                                | restore                                                        |
+| PATCH                   | `/api/municipios/{id}/estado/`                              | Admin                                | activate/deactivate                                            |
+| POST                    | `/api/municipios/{id}/permanent/`                           | Admin                                | hard delete (blocked if localidades exist, `views.py:746-766`) |
+| GET, POST               | `/api/municipios/{id}/localidades/` and `/api/localidades/` | public read / Admin write            | list (by municipio), create                                    |
+| GET                     | `/api/localidades/trash/`                                   | public read                          | trash list                                                     |
+| GET, PUT, PATCH, DELETE | `/api/localidades/{id}/`                                    | IsAuthenticated / Admin              | retrieve, update, soft delete                                  |
+| POST                    | `/api/localidades/{id}/restore/`                            | Admin                                | restore                                                        |
+| PATCH                   | `/api/localidades/{id}/estado/`                             | Admin                                | activate/deactivate                                            |
+| POST                    | `/api/localidades/{id}/permanent/`                          | Admin                                | hard delete                                                    |
 
 ### 3.3 Categorías & unidades (product catalogs)
 
@@ -246,27 +246,27 @@ Views in `legacy/rassa_back/rassa/views.py:465-773`. Bruno: `legacy/rassa_back/b
 (`legacy/rassa_back/rassa/urls.py:66-67`). Permission: `IsAdminOrReadOnly`.
 Bruno: `legacy/rassa_back/bruno/categorias/` (8 files), `legacy/rassa_back/bruno/unidades/` (8 files).
 
-| Method(s) | Path | CRUD coverage |
-|---|---|---|
-| GET, POST | `/api/categorias/`, `/api/unidades/` | list, create |
-| GET | `/api/categorias/trash/`, `/api/unidades/trash/` | trash list |
-| GET, PUT, PATCH, DELETE | `/api/categorias/{id}/`, `/api/unidades/{id}/` | retrieve, update, soft delete |
-| POST | `/api/categorias/{id}/restore/`, `/api/unidades/{id}/restore/` | restore |
-| POST | `/api/categorias/{id}/permanent/`, `/api/unidades/{id}/permanent/` | hard delete (409 on `ProtectedError`, `views.py:328-341`) |
+| Method(s)               | Path                                                               | CRUD coverage                                             |
+| ----------------------- | ------------------------------------------------------------------ | --------------------------------------------------------- |
+| GET, POST               | `/api/categorias/`, `/api/unidades/`                               | list, create                                              |
+| GET                     | `/api/categorias/trash/`, `/api/unidades/trash/`                   | trash list                                                |
+| GET, PUT, PATCH, DELETE | `/api/categorias/{id}/`, `/api/unidades/{id}/`                     | retrieve, update, soft delete                             |
+| POST                    | `/api/categorias/{id}/restore/`, `/api/unidades/{id}/restore/`     | restore                                                   |
+| POST                    | `/api/categorias/{id}/permanent/`, `/api/unidades/{id}/permanent/` | hard delete (409 on `ProtectedError`, `views.py:328-341`) |
 
 ### 3.4 Productos (catalog CRUD + images)
 
 Views: `legacy/rassa_back/rassa/productos_views.py`. Bruno: `legacy/rassa_back/bruno/productos/` (13 files).
 
-| Method(s) | Path | Permission | CRUD coverage |
-|---|---|---|---|
-| GET, POST | `/api/productos/` | Admin write / authenticated read | list (django-filter filterset, search, ordering), create |
-| GET, PUT, PATCH, DELETE | `/api/productos/{id}/` | Admin write / authenticated read | retrieve, update, **soft delete** (no trash/restore endpoints for producto) |
-| POST | `/api/productos/{id}/imagen/` | Admin (via `IsAdminOrReadOnly`) + ownership check | upload image (multipart `imagen` or JSON `imagen_base64`) → Google Drive |
-| DELETE, PATCH | `/api/productos/{id}/imagen/{id_imagen}/` | IsAuthenticated + ownership check | delete image (Drive delete + principal reassignment), patch `es_principal` |
-| GET, POST | `/api/productos/{id}/imagenes/` | GET any authenticated; POST Admin/Agricultor | list, upload (Drive) |
-| DELETE, PATCH | `/api/productos/{id}/imagenes/{image_id}/` | Admin/Agricultor | delete, partial update (`url`, `orden` only) |
-| PATCH | `/api/productos/{id}/imagenes/{image_id}/set-principal/` | Admin/Agricultor | set principal (atomic, row-locked) |
+| Method(s)               | Path                                                     | Permission                                        | CRUD coverage                                                               |
+| ----------------------- | -------------------------------------------------------- | ------------------------------------------------- | --------------------------------------------------------------------------- |
+| GET, POST               | `/api/productos/`                                        | Admin write / authenticated read                  | list (django-filter filterset, search, ordering), create                    |
+| GET, PUT, PATCH, DELETE | `/api/productos/{id}/`                                   | Admin write / authenticated read                  | retrieve, update, **soft delete** (no trash/restore endpoints for producto) |
+| POST                    | `/api/productos/{id}/imagen/`                            | Admin (via `IsAdminOrReadOnly`) + ownership check | upload image (multipart `imagen` or JSON `imagen_base64`) → Google Drive    |
+| DELETE, PATCH           | `/api/productos/{id}/imagen/{id_imagen}/`                | IsAuthenticated + ownership check                 | delete image (Drive delete + principal reassignment), patch `es_principal`  |
+| GET, POST               | `/api/productos/{id}/imagenes/`                          | GET any authenticated; POST Admin/Agricultor      | list, upload (Drive)                                                        |
+| DELETE, PATCH           | `/api/productos/{id}/imagenes/{image_id}/`               | Admin/Agricultor                                  | delete, partial update (`url`, `orden` only)                                |
+| PATCH                   | `/api/productos/{id}/imagenes/{image_id}/set-principal/` | Admin/Agricultor                                  | set principal (atomic, row-locked)                                          |
 
 Two parallel image pipelines exist (see §10 gotchas).
 
@@ -276,16 +276,16 @@ Views: `legacy/rassa_back/rassa/blueprints/publicacion/views.py`, routes
 `legacy/rassa_back/rassa/blueprints/publicacion/urls.py`. Permission: Agricultor
 (except `current`, AllowAny). Bruno: `legacy/rassa_back/bruno/publicaciones/` (14 files).
 
-| Method(s) | Path | CRUD coverage |
-|---|---|---|
-| GET | `/api/publicaciones/current/` | public list of this week's `publicado` publications (max 100) |
-| GET, POST | `/api/publicaciones/` | list (own), create (next Monday, ISO week) |
-| GET, DELETE | `/api/publicaciones/{id}/` | retrieve, destroy (borrador→cancelado) |
-| POST | `/api/publicaciones/{id}/publish/` | borrador→publicado with per-item validation |
-| POST | `/api/publicaciones/{id}/close/` | publicado→cerrado |
-| GET, POST | `/api/publicaciones/{pub_id}/productos/` | list (activos), create |
-| PATCH, DELETE | `/api/publicaciones/{pub_id}/productos/{id}/` | partial update, destroy (activo→inactivo) |
-| POST | `/api/publicaciones/{pub_id}/productos/{id}/restore/` | inactivo→activo |
+| Method(s)     | Path                                                  | CRUD coverage                                                 |
+| ------------- | ----------------------------------------------------- | ------------------------------------------------------------- |
+| GET           | `/api/publicaciones/current/`                         | public list of this week's `publicado` publications (max 100) |
+| GET, POST     | `/api/publicaciones/`                                 | list (own), create (next Monday, ISO week)                    |
+| GET, DELETE   | `/api/publicaciones/{id}/`                            | retrieve, destroy (borrador→cancelado)                        |
+| POST          | `/api/publicaciones/{id}/publish/`                    | borrador→publicado with per-item validation                   |
+| POST          | `/api/publicaciones/{id}/close/`                      | publicado→cerrado                                             |
+| GET, POST     | `/api/publicaciones/{pub_id}/productos/`              | list (activos), create                                        |
+| PATCH, DELETE | `/api/publicaciones/{pub_id}/productos/{id}/`         | partial update, destroy (activo→inactivo)                     |
+| POST          | `/api/publicaciones/{pub_id}/productos/{id}/restore/` | inactivo→activo                                               |
 
 ### 3.6 Pedidos
 
@@ -293,13 +293,13 @@ Views: `legacy/rassa_back/rassa/blueprints/pedido/views.py`, routes
 `legacy/rassa_back/rassa/blueprints/pedido/urls.py`. Bruno: `legacy/rassa_back/bruno/pedidos/`
 (6 files: listar, listar_filtrados, detalle, crear_pedido, cambiar_estado, historial).
 
-| Method(s) | Path | Permission | CRUD coverage |
-|---|---|---|---|
-| GET | `/api/pedidos/` | Vendedor/Admin/Cliente (role-filtered, `pedido/views.py:79-102`) | list + `?estado=` filter |
-| POST | `/api/pedidos/` | **Cliente only** (`pedido/views.py:74-77`) | create (cart of `items`) |
-| GET | `/api/pedidos/{id}/` | role-filtered | retrieve |
-| PATCH | `/api/pedidos/{id}/status/` | Vendedor/Admin (client rejected) | state transition (linear `SECUENCIA` or `cancelado`) |
-| GET | `/api/pedidos/{id}/historial/` | authenticated (Vendedor limited to own) | state history |
+| Method(s) | Path                           | Permission                                                       | CRUD coverage                                        |
+| --------- | ------------------------------ | ---------------------------------------------------------------- | ---------------------------------------------------- |
+| GET       | `/api/pedidos/`                | Vendedor/Admin/Cliente (role-filtered, `pedido/views.py:79-102`) | list + `?estado=` filter                             |
+| POST      | `/api/pedidos/`                | **Cliente only** (`pedido/views.py:74-77`)                       | create (cart of `items`)                             |
+| GET       | `/api/pedidos/{id}/`           | role-filtered                                                    | retrieve                                             |
+| PATCH     | `/api/pedidos/{id}/status/`    | Vendedor/Admin (client rejected)                                 | state transition (linear `SECUENCIA` or `cancelado`) |
+| GET       | `/api/pedidos/{id}/historial/` | authenticated (Vendedor limited to own)                          | state history                                        |
 
 No update/delete of pedidos; no direct vendedor-assignment endpoint (assignment is not
 in the create flow — **Inference**: assignment presumably happens outside this API or is
@@ -310,12 +310,12 @@ left unset; evidence: `PedidoCreateSerializer` has no vendedor field and
 
 Views: `legacy/rassa_back/rassa/blueprints/pagos/views.py`. Bruno: `legacy/rassa_back/bruno/pagos/` (4 files).
 
-| Method(s) | Path | Permission | CRUD coverage |
-|---|---|---|---|
-| GET | `/api/pagos/` | Vendedor (own)/Cliente (own)/Admin | list + `?pedido=` filter |
-| POST | `/api/pagos/` | Vendedor/Admin | create (only when pedido is `listo_para_retirar`; auto-advances pedido to `entregado`) |
-| GET | `/api/pagos/{id}/` | role-filtered | retrieve |
-| GET | `/api/tipos-pago/` | IsAuthenticated | catalog list (plain array response) |
+| Method(s) | Path               | Permission                         | CRUD coverage                                                                          |
+| --------- | ------------------ | ---------------------------------- | -------------------------------------------------------------------------------------- |
+| GET       | `/api/pagos/`      | Vendedor (own)/Cliente (own)/Admin | list + `?pedido=` filter                                                               |
+| POST      | `/api/pagos/`      | Vendedor/Admin                     | create (only when pedido is `listo_para_retirar`; auto-advances pedido to `entregado`) |
+| GET       | `/api/pagos/{id}/` | role-filtered                      | retrieve                                                                               |
+| GET       | `/api/tipos-pago/` | IsAuthenticated                    | catalog list (plain array response)                                                    |
 
 No update/delete of pagos.
 
@@ -324,24 +324,24 @@ No update/delete of pagos.
 Views: `legacy/rassa_back/rassa/blueprints/liquidaciones/views.py`. **Admin only**
 (`liquidaciones/views.py:268`). Bruno: `legacy/rassa_back/bruno/liquidaciones/` (4 files).
 
-| Method(s) | Path | CRUD coverage |
-|---|---|---|
-| GET | `/api/liquidaciones/` | list (filters: `agricultor`, `estado`, `periodo_inicio`, `periodo_fin`) |
-| GET | `/api/liquidaciones/{id}/` | retrieve (with ventas snapshot + pago) |
-| POST | `/api/liquidaciones/calcular/` | calculate for `agricultor`+`semana`+`anio` |
-| POST | `/api/liquidaciones/{id}/marcar-pagada/` | idempotent payment marking (creates `Pago` with `fk_pedido=NULL`) |
+| Method(s) | Path                                     | CRUD coverage                                                           |
+| --------- | ---------------------------------------- | ----------------------------------------------------------------------- |
+| GET       | `/api/liquidaciones/`                    | list (filters: `agricultor`, `estado`, `periodo_inicio`, `periodo_fin`) |
+| GET       | `/api/liquidaciones/{id}/`               | retrieve (with ventas snapshot + pago)                                  |
+| POST      | `/api/liquidaciones/calcular/`           | calculate for `agricultor`+`semana`+`anio`                              |
+| POST      | `/api/liquidaciones/{id}/marcar-pagada/` | idempotent payment marking (creates `Pago` with `fk_pedido=NULL`)       |
 
 ### 3.9 Cortes (cash drawer)
 
 Views: `legacy/rassa_back/rassa/blueprints/cortes/views.py`. Permission: Admin/Vendedor
 (Vendedor sees own). Bruno: `legacy/rassa_back/bruno/cortes/` (4 files).
 
-| Method(s) | Path | CRUD coverage |
-|---|---|---|
-| GET | `/api/cortes/` | list (Vendedor: own) |
-| GET | `/api/cortes/{id}/` | retrieve |
-| POST | `/api/cortes/` | create (monto_teorico computed server-side; one per vendedor+fecha) |
-| GET | `/api/cortes/teorico/` | theoretical cash for a date (60 s cache) |
+| Method(s) | Path                   | CRUD coverage                                                       |
+| --------- | ---------------------- | ------------------------------------------------------------------- |
+| GET       | `/api/cortes/`         | list (Vendedor: own)                                                |
+| GET       | `/api/cortes/{id}/`    | retrieve                                                            |
+| POST      | `/api/cortes/`         | create (monto_teorico computed server-side; one per vendedor+fecha) |
+| GET       | `/api/cortes/teorico/` | theoretical cash for a date (60 s cache)                            |
 
 No update/delete of cortes.
 
@@ -352,16 +352,16 @@ Views: `legacy/rassa_back/rassa/blueprints/familias/views.py`. **Admin only**. B
 actualizar-parcial, eliminar, eliminar-permanente, grupos-listar-trash, grupos-restaurar,
 asignar_jefe, agregar_miembro, miembros-listar, miembros-detalle, miembros-eliminar).
 
-| Method(s) | Path | CRUD coverage |
-|---|---|---|
-| GET, POST | `/api/familias/grupos/` | list (activos), create |
-| GET | `/api/familias/grupos/trash/` | trash list |
-| GET, PUT, PATCH, DELETE | `/api/familias/grupos/{id}/` | retrieve, update, **soft delete** (also deactivates members + family chat) |
-| POST | `/api/familias/grupos/{id}/restore/` | restore (requires new `fk_jefe_familia` in body) |
-| POST | `/api/familias/grupos/{id}/permanent/` | hard delete (deletes members first, archives chat) |
-| POST | `/api/familias/grupos/{id}/asignar-jefe/` | assign chief (must be active member) |
-| GET, POST | `/api/familias/miembros/` | list (filter `?fk_familia=`), create membership |
-| GET, DELETE | `/api/familias/miembros/{id}/` | retrieve, destroy (soft delete; PUT/PATCH are disabled via `http_method_names`, `familias/views.py:196`) |
+| Method(s)               | Path                                      | CRUD coverage                                                                                            |
+| ----------------------- | ----------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| GET, POST               | `/api/familias/grupos/`                   | list (activos), create                                                                                   |
+| GET                     | `/api/familias/grupos/trash/`             | trash list                                                                                               |
+| GET, PUT, PATCH, DELETE | `/api/familias/grupos/{id}/`              | retrieve, update, **soft delete** (also deactivates members + family chat)                               |
+| POST                    | `/api/familias/grupos/{id}/restore/`      | restore (requires new `fk_jefe_familia` in body)                                                         |
+| POST                    | `/api/familias/grupos/{id}/permanent/`    | hard delete (deletes members first, archives chat)                                                       |
+| POST                    | `/api/familias/grupos/{id}/asignar-jefe/` | assign chief (must be active member)                                                                     |
+| GET, POST               | `/api/familias/miembros/`                 | list (filter `?fk_familia=`), create membership                                                          |
+| GET, DELETE             | `/api/familias/miembros/{id}/`            | retrieve, destroy (soft delete; PUT/PATCH are disabled via `http_method_names`, `familias/views.py:196`) |
 
 ### 3.11 Chat
 
@@ -370,37 +370,37 @@ Views: `legacy/rassa_back/rassa/blueprints/chat/views.py`, routes
 checks per conversation; chat-admin (Integrante.rol="admin") required for group
 management. Bruno: `legacy/rassa_back/bruno/chat/` (17 files).
 
-| Method(s) | Path | CRUD coverage |
-|---|---|---|
-| POST | `/api/chat/conversaciones/crear-privada/` | get-or-create private conversation (200 if exists, 201 if created) |
-| POST | `/api/chat/conversaciones/crear-grupal/` | create group (creator = chat admin; manual `fk_familia` forbidden) |
-| PATCH | `/api/chat/conversaciones/{id}/renombrar/` | rename (chat admin; family chats require `nombre_override`) |
-| PATCH | `/api/chat/conversaciones/{id}/override-nombre/` | toggle family-name override (chat admin) |
-| POST | `/api/chat/conversaciones/familia/{familia_id}/sincronizar/` | **Admin**: resync family conversation |
-| POST | `/api/chat/conversaciones/{id}/agregar-integrante/` | add/reactivate member (chat admin) |
-| DELETE | `/api/chat/conversaciones/{id}/integrantes/{usuario_id}/` | remove member (soft) |
-| GET | `/api/chat/conversaciones/{id}/integrantes/` | list members |
-| GET | `/api/chat/usuarios/conversaciones/` | list own conversations with last message + unread count |
-| GET | `/api/chat/conversaciones/{id}/` | conversation detail |
-| GET | `/api/chat/conversaciones/{id}/mensajes/` | list messages (paginated) |
-| POST | `/api/chat/mensajes/enviar/` | send text message |
-| POST | `/api/chat/mensajes/enviar-con-documento/` | send message + file (multipart; Drive-less local storage under `media/documentos/`) |
-| PATCH | `/api/chat/mensajes/{id}/editar/` | edit own message (15-minute window) |
-| PATCH | `/api/chat/mensajes/{id}/inactivar/` | soft-delete own message (15-minute window) |
-| PATCH | `/api/chat/conversaciones/{id}/leer/` | mark all incoming messages read |
-| GET | `/api/chat/usuarios/buscar/` | user search (min 3 chars, max 10) |
+| Method(s) | Path                                                         | CRUD coverage                                                                       |
+| --------- | ------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
+| POST      | `/api/chat/conversaciones/crear-privada/`                    | get-or-create private conversation (200 if exists, 201 if created)                  |
+| POST      | `/api/chat/conversaciones/crear-grupal/`                     | create group (creator = chat admin; manual `fk_familia` forbidden)                  |
+| PATCH     | `/api/chat/conversaciones/{id}/renombrar/`                   | rename (chat admin; family chats require `nombre_override`)                         |
+| PATCH     | `/api/chat/conversaciones/{id}/override-nombre/`             | toggle family-name override (chat admin)                                            |
+| POST      | `/api/chat/conversaciones/familia/{familia_id}/sincronizar/` | **Admin**: resync family conversation                                               |
+| POST      | `/api/chat/conversaciones/{id}/agregar-integrante/`          | add/reactivate member (chat admin)                                                  |
+| DELETE    | `/api/chat/conversaciones/{id}/integrantes/{usuario_id}/`    | remove member (soft)                                                                |
+| GET       | `/api/chat/conversaciones/{id}/integrantes/`                 | list members                                                                        |
+| GET       | `/api/chat/usuarios/conversaciones/`                         | list own conversations with last message + unread count                             |
+| GET       | `/api/chat/conversaciones/{id}/`                             | conversation detail                                                                 |
+| GET       | `/api/chat/conversaciones/{id}/mensajes/`                    | list messages (paginated)                                                           |
+| POST      | `/api/chat/mensajes/enviar/`                                 | send text message                                                                   |
+| POST      | `/api/chat/mensajes/enviar-con-documento/`                   | send message + file (multipart; Drive-less local storage under `media/documentos/`) |
+| PATCH     | `/api/chat/mensajes/{id}/editar/`                            | edit own message (15-minute window)                                                 |
+| PATCH     | `/api/chat/mensajes/{id}/inactivar/`                         | soft-delete own message (15-minute window)                                          |
+| PATCH     | `/api/chat/conversaciones/{id}/leer/`                        | mark all incoming messages read                                                     |
+| GET       | `/api/chat/usuarios/buscar/`                                 | user search (min 3 chars, max 10)                                                   |
 
 ### 3.12 Mermas (waste/losses)
 
 Views: `legacy/rassa_back/rassa/blueprints/waste/views.py`. Bruno: `legacy/rassa_back/bruno/mermas/` (11 files).
 
-| Method(s) | Path | Permission | CRUD coverage |
-|---|---|---|---|
-| GET, POST | `/api/decisiones-merma/` | Admin | list (`?incluir_inactivos=`), create |
-| GET, PATCH, DELETE | `/api/decisiones-merma/{id}/` | Admin | retrieve, update, **soft delete** |
-| GET, POST | `/api/mermas/` | Admin/Vendedor | list (Vendedor: own pedidos; filters `?incluir_inactivos=`, `?fk_pedido=`), create (stock decrement under lock) |
-| GET | `/api/mermas/{id}/` | Admin/Vendedor | retrieve |
-| GET | `/api/mermas/resumen/` | Admin | aggregated report (group by mes/semana; top product) |
+| Method(s)          | Path                          | Permission     | CRUD coverage                                                                                                   |
+| ------------------ | ----------------------------- | -------------- | --------------------------------------------------------------------------------------------------------------- |
+| GET, POST          | `/api/decisiones-merma/`      | Admin          | list (`?incluir_inactivos=`), create                                                                            |
+| GET, PATCH, DELETE | `/api/decisiones-merma/{id}/` | Admin          | retrieve, update, **soft delete**                                                                               |
+| GET, POST          | `/api/mermas/`                | Admin/Vendedor | list (Vendedor: own pedidos; filters `?incluir_inactivos=`, `?fk_pedido=`), create (stock decrement under lock) |
+| GET                | `/api/mermas/{id}/`           | Admin/Vendedor | retrieve                                                                                                        |
+| GET                | `/api/mermas/resumen/`        | Admin          | aggregated report (group by mes/semana; top product)                                                            |
 
 No update/delete of mermas (register-only).
 
@@ -410,15 +410,15 @@ ViewSet `RecoleccionViewSet` (`legacy/rassa_back/rassa/blueprints/recoleccion/vi
 router `legacy/rassa_back/rassa/blueprints/recoleccion/urls.py`. Reads: any authenticated
 (role-scoped); writes: Admin/Vendedor. Bruno: `legacy/rassa_back/bruno/recolecciones/` (7 files).
 
-| Method(s) | Path | CRUD coverage |
-|---|---|---|
-| GET | `/api/recolecciones/` | list (filters: `estado`, `fk_agricultor`, `fecha`, `fecha_desde`, `fecha_hasta`) |
-| POST | `/api/recolecciones/` | create (`estado` forbidden in body; agricultor locked & validated) |
-| GET | `/api/recolecciones/{id}/` | retrieve |
-| PATCH | `/api/recolecciones/{id}/` | partial update (only while `pendiente`) |
-| POST | `/api/recolecciones/{id}/estado/` | strict state machine (400 if already in that state) |
-| POST | `/api/recolecciones/{id}/cancelar/` | idempotent cancel (200 if already cancelled) |
-| GET | `/api/recolecciones/agricultores/` | farmer selector for Admin/Vendedor |
+| Method(s) | Path                                | CRUD coverage                                                                    |
+| --------- | ----------------------------------- | -------------------------------------------------------------------------------- |
+| GET       | `/api/recolecciones/`               | list (filters: `estado`, `fk_agricultor`, `fecha`, `fecha_desde`, `fecha_hasta`) |
+| POST      | `/api/recolecciones/`               | create (`estado` forbidden in body; agricultor locked & validated)               |
+| GET       | `/api/recolecciones/{id}/`          | retrieve                                                                         |
+| PATCH     | `/api/recolecciones/{id}/`          | partial update (only while `pendiente`)                                          |
+| POST      | `/api/recolecciones/{id}/estado/`   | strict state machine (400 if already in that state)                              |
+| POST      | `/api/recolecciones/{id}/cancelar/` | idempotent cancel (200 if already cancelled)                                     |
+| GET       | `/api/recolecciones/agricultores/`  | farmer selector for Admin/Vendedor                                               |
 
 No delete of recolecciones (cancel only). `PUT` and `DELETE` are disabled
 (`recoleccion/views.py:174`).
@@ -441,15 +441,15 @@ URL config without dedicated bruno files (the newer `/imagenes/` paths do have t
 
 ### Auth & users (`legacy/rassa_back/rassa/auth_serializers.py`)
 
-| Serializer | Accepted (write) fields | Validators | Notes |
-|---|---|---|---|
-| `RegisterSerializer` (`:204-246`) | email, password, telefono, role (buyer/seller), nombre, apellido_paterno, apellido_materno?, fecha_nacimiento, sexo (M/F/O), domicilio, fk_localidad | email uniqueness across `auth.User.username/email` AND `Usuario.correo`; `validate_password`; localidad must exist + be active with active municipio; IntegrityError inspection maps duplicate email/telefono | Creates User+Persona+Usuario in one transaction (`_create_usuario_db`, `:61-111`) |
-| `AdminCreateAgricultorSerializer` (`:249-285`) | same minus `role` (always Agricultor) | reuses RegisterSerializer bound validators | |
-| `ProfileUpdateSerializer` (`:288-328`) | telefono, nombre, apellido_paterno, apellido_materno?, fecha_nacimiento, sexo, domicilio, fk_localidad (all optional) | localidad validator | email/role not editable |
-| `ChangePasswordSerializer` (`:331-361`) | old_password, new_password, refresh_token? | old password check; `validate_password`; new ≠ old | |
-| `CustomTokenObtainPairSerializer` (`:119-143`) | email, password | ambiguous error message (anti-enumeration); checks `user.is_active` | sets `serializer.user` for the view |
-| `AdminUserUpdateSerializer` (`legacy/rassa_back/rassa/admin_serializers.py`, single-line file) | telefono, nombre, apellido_paterno, apellido_materno?, fecha_nacimiento, sexo, domicilio, fk_localidad, role | role must map to an existing Rol; localidad must exist | atomic update of Usuario + Persona |
-| `AdminUserSerializer` | read-only projection incl. `role` alias and localidad name | — | |
+| Serializer                                                                                     | Accepted (write) fields                                                                                                                              | Validators                                                                                                                                                                                                    | Notes                                                                             |
+| ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `RegisterSerializer` (`:204-246`)                                                              | email, password, telefono, role (buyer/seller), nombre, apellido_paterno, apellido_materno?, fecha_nacimiento, sexo (M/F/O), domicilio, fk_localidad | email uniqueness across `auth.User.username/email` AND `Usuario.correo`; `validate_password`; localidad must exist + be active with active municipio; IntegrityError inspection maps duplicate email/telefono | Creates User+Persona+Usuario in one transaction (`_create_usuario_db`, `:61-111`) |
+| `AdminCreateAgricultorSerializer` (`:249-285`)                                                 | same minus `role` (always Agricultor)                                                                                                                | reuses RegisterSerializer bound validators                                                                                                                                                                    |                                                                                   |
+| `ProfileUpdateSerializer` (`:288-328`)                                                         | telefono, nombre, apellido_paterno, apellido_materno?, fecha_nacimiento, sexo, domicilio, fk_localidad (all optional)                                | localidad validator                                                                                                                                                                                           | email/role not editable                                                           |
+| `ChangePasswordSerializer` (`:331-361`)                                                        | old_password, new_password, refresh_token?                                                                                                           | old password check; `validate_password`; new ≠ old                                                                                                                                                            |                                                                                   |
+| `CustomTokenObtainPairSerializer` (`:119-143`)                                                 | email, password                                                                                                                                      | ambiguous error message (anti-enumeration); checks `user.is_active`                                                                                                                                           | sets `serializer.user` for the view                                               |
+| `AdminUserUpdateSerializer` (`legacy/rassa_back/rassa/admin_serializers.py`, single-line file) | telefono, nombre, apellido_paterno, apellido_materno?, fecha_nacimiento, sexo, domicilio, fk_localidad, role                                         | role must map to an existing Rol; localidad must exist                                                                                                                                                        | atomic update of Usuario + Persona                                                |
+| `AdminUserSerializer`                                                                          | read-only projection incl. `role` alias and localidad name                                                                                           | —                                                                                                                                                                                                             |                                                                                   |
 
 ### Catalogs (`legacy/rassa_back/rassa/catalogos_serializers.py`)
 
@@ -529,114 +529,114 @@ serializers with `.create()` overrides are used.**
 
 ### Ordering & checkout (pedidos)
 
-| # | Rule | Evidence |
-|---|---|---|
-| B1 | Only Cliente can create pedidos | `legacy/rassa_back/rassa/blueprints/pedido/views.py:114-120` |
-| B2 | Items validated twice: serializer pre-check + re-validation under `select_for_update` (existence, stock, estado activo, publication `publicado`, catalog product active) | `pedido/views.py:336-397` |
-| B3 | Duplicate items rejected | `pedido/views.py:346-351` |
-| B4 | Stock rows locked in pk order to avoid deadlocks; stock decremented atomically | `pedido/views.py:353-360, 139-142` |
-| B5 | IVA = 21 % of subtotal (`settings.IVA_RATE`); `total = subtotal + iva` recomputed on every save | `legacy/rassa_back/rassa/settings.py:246`, `legacy/rassa_back/rassa/models.py:442-444` |
-| B6 | Credit limit: sum of **pending** pedidos of the client **and all active family members** + new total must not exceed `LimiteCliente.monto`; all under `select_for_update` | `pedido/views.py:442-491` |
-| B7 | Linear state machine `pendiente→confirmado→en_preparacion→listo_para_retirar→entregado`; `cancelado` allowed only from `{pendiente, confirmado, en_preparacion, listo_para_retirar}`; terminal states `{entregado, cancelado}` | `pedido/views.py:50-55`, `pedido/serializers.py:8-9` |
-| B8 | Clients cannot change state; state change writes `HistorialEstadoPedido` with the actor | `pedido/views.py:206-282` |
-| B9 | Expired-pending-pedido check (`fecha_expiracion < now`) blocks transitions — but `fecha_expiracion` is never set by the create flow (seed data only) | `pedido/serializers.py:21-32`, `PedidoCreateSerializer` (no such field) |
+| #   | Rule                                                                                                                                                                                                                           | Evidence                                                                               |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| B1  | Only Cliente can create pedidos                                                                                                                                                                                                | `legacy/rassa_back/rassa/blueprints/pedido/views.py:114-120`                           |
+| B2  | Items validated twice: serializer pre-check + re-validation under `select_for_update` (existence, stock, estado activo, publication `publicado`, catalog product active)                                                       | `pedido/views.py:336-397`                                                              |
+| B3  | Duplicate items rejected                                                                                                                                                                                                       | `pedido/views.py:346-351`                                                              |
+| B4  | Stock rows locked in pk order to avoid deadlocks; stock decremented atomically                                                                                                                                                 | `pedido/views.py:353-360, 139-142`                                                     |
+| B5  | IVA = 21 % of subtotal (`settings.IVA_RATE`); `total = subtotal + iva` recomputed on every save                                                                                                                                | `legacy/rassa_back/rassa/settings.py:246`, `legacy/rassa_back/rassa/models.py:442-444` |
+| B6  | Credit limit: sum of **pending** pedidos of the client **and all active family members** + new total must not exceed `LimiteCliente.monto`; all under `select_for_update`                                                      | `pedido/views.py:442-491`                                                              |
+| B7  | Linear state machine `pendiente→confirmado→en_preparacion→listo_para_retirar→entregado`; `cancelado` allowed only from `{pendiente, confirmado, en_preparacion, listo_para_retirar}`; terminal states `{entregado, cancelado}` | `pedido/views.py:50-55`, `pedido/serializers.py:8-9`                                   |
+| B8  | Clients cannot change state; state change writes `HistorialEstadoPedido` with the actor                                                                                                                                        | `pedido/views.py:206-282`                                                              |
+| B9  | Expired-pending-pedido check (`fecha_expiracion < now`) blocks transitions — but `fecha_expiracion` is never set by the create flow (seed data only)                                                                           | `pedido/serializers.py:21-32`, `PedidoCreateSerializer` (no such field)                |
 
 ### Payments (pagos)
 
-| # | Rule | Evidence |
-|---|---|---|
-| P1 | Payment allowed only when pedido is `listo_para_retirar`; re-checked under row lock (TOCTOU) | `pagos/views.py:121-131` |
-| P2 | Exactly one pago per pedido (DB constraint + pre-check); monto must equal pedido.total | `pagos/serializers.py:40-49`, `legacy/rassa_back/rassa/models.py:505-510` |
-| P3 | Successful payment auto-advances pedido to `entregado` with history entry | `pagos/views.py:149-159` |
-| P4 | Folio generated as `REC-YYYYMMDD-###` under a `pg_advisory_xact_lock` (PostgreSQL) | `legacy/rassa_back/rassa/models.py:515-530` |
-| P5 | Vendedor can only pay their own pedidos | `pagos/views.py:114-119` |
+| #   | Rule                                                                                         | Evidence                                                                  |
+| --- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| P1  | Payment allowed only when pedido is `listo_para_retirar`; re-checked under row lock (TOCTOU) | `pagos/views.py:121-131`                                                  |
+| P2  | Exactly one pago per pedido (DB constraint + pre-check); monto must equal pedido.total       | `pagos/serializers.py:40-49`, `legacy/rassa_back/rassa/models.py:505-510` |
+| P3  | Successful payment auto-advances pedido to `entregado` with history entry                    | `pagos/views.py:149-159`                                                  |
+| P4  | Folio generated as `REC-YYYYMMDD-###` under a `pg_advisory_xact_lock` (PostgreSQL)           | `legacy/rassa_back/rassa/models.py:515-530`                               |
+| P5  | Vendedor can only pay their own pedidos                                                      | `pagos/views.py:114-119`                                                  |
 
 ### Cash reconciliation (cortes)
 
-| # | Rule | Evidence |
-|---|---|---|
-| C1 | `monto_teorico` = sum of **cash** (`fk_tipo__nombre__iexact="efectivo"`) pagos of the vendedor for the local-timezone day | `cortes/views.py:68-83` |
-| C2 | One corte per (vendedor, fecha) — DB partial unique + pre-check + IntegrityError guard | `cortes/views.py:100-125`, `legacy/rassa_back/rassa/models.py:600-610` |
-| C3 | `monto_teorico`/`diferencia` are creation-time snapshots; later payments do not retro-update | `legacy/rassa_back/rassa/models.py:584-593,615-620` |
-| C4 | `teorico` endpoint caches 60 s; `create` never uses cache | `cortes/views.py:138-162` |
+| #   | Rule                                                                                                                      | Evidence                                                               |
+| --- | ------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| C1  | `monto_teorico` = sum of **cash** (`fk_tipo__nombre__iexact="efectivo"`) pagos of the vendedor for the local-timezone day | `cortes/views.py:68-83`                                                |
+| C2  | One corte per (vendedor, fecha) — DB partial unique + pre-check + IntegrityError guard                                    | `cortes/views.py:100-125`, `legacy/rassa_back/rassa/models.py:600-610` |
+| C3  | `monto_teorico`/`diferencia` are creation-time snapshots; later payments do not retro-update                              | `legacy/rassa_back/rassa/models.py:584-593,615-620`                    |
+| C4  | `teorico` endpoint caches 60 s; `create` never uses cache                                                                 | `cortes/views.py:138-162`                                              |
 
 ### Weekly settlements (liquidaciones)
 
-| # | Rule | Evidence |
-|---|---|---|
-| L1 | Admin-only module | `liquidaciones/views.py:268` |
-| L2 | Week = ISO week; period is Monday→Sunday (fin exclusive in queries) | `liquidaciones/views.py:47-50` |
-| L3 | Only `entregado` pedidos containing DetallePedido lines of the agricultor's ProductoSemanal count; pedidos already liquidated **for that same agricultor** are excluded | `liquidaciones/views.py:53-96` |
-| L4 | Multi-agricultor pedidos: only the agricultor's own line sums count | `liquidaciones/views.py:113-124` |
-| L5 | Commission rate 10 % (`COMISION_RASSA`); `comision` rounded HALF_UP to cents; `monto_liquidar = monto_ventas − comision` | `liquidaciones/constants.py:6`, `liquidaciones/views.py:122-124` |
-| L6 | Liquidación + `LiquidacionVenta` snapshot created atomically; snapshot keeps the detail stable even if pedido state changes later | `liquidaciones/views.py:127-160`, `legacy/rassa_back/rassa/models.py:972-980` |
-| L7 | Anti-duplicate: any existing liquidación for (agricultor, periodo) in any state returns 409 — pagada periods can never be recalculated (double-payment guard); DB unique constraint is the backstop | `liquidaciones/views.py:193-216,450-454`, `legacy/rassa_back/rassa/models.py:961-966` |
-| L8 | `marcar_pagada` is idempotent; creates `Pago(fk_pedido=NULL)`; inconsistent data states self-heal (pendiente+pago → pagada) or error (pagada sin pago) | `liquidaciones/views.py:491-588` |
-| L9 | Transient DB errors (deadlock 40P01, lock timeout 55P03, etc.) → 409 with `Retry-After` header; lock_timeout 5 s via `SET LOCAL` | `liquidaciones/views.py:219-252`, `liquidaciones/constants.py:20-22` |
+| #   | Rule                                                                                                                                                                                                | Evidence                                                                              |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| L1  | Admin-only module                                                                                                                                                                                   | `liquidaciones/views.py:268`                                                          |
+| L2  | Week = ISO week; period is Monday→Sunday (fin exclusive in queries)                                                                                                                                 | `liquidaciones/views.py:47-50`                                                        |
+| L3  | Only `entregado` pedidos containing DetallePedido lines of the agricultor's ProductoSemanal count; pedidos already liquidated **for that same agricultor** are excluded                             | `liquidaciones/views.py:53-96`                                                        |
+| L4  | Multi-agricultor pedidos: only the agricultor's own line sums count                                                                                                                                 | `liquidaciones/views.py:113-124`                                                      |
+| L5  | Commission rate 10 % (`COMISION_RASSA`); `comision` rounded HALF_UP to cents; `monto_liquidar = monto_ventas − comision`                                                                            | `liquidaciones/constants.py:6`, `liquidaciones/views.py:122-124`                      |
+| L6  | Liquidación + `LiquidacionVenta` snapshot created atomically; snapshot keeps the detail stable even if pedido state changes later                                                                   | `liquidaciones/views.py:127-160`, `legacy/rassa_back/rassa/models.py:972-980`         |
+| L7  | Anti-duplicate: any existing liquidación for (agricultor, periodo) in any state returns 409 — pagada periods can never be recalculated (double-payment guard); DB unique constraint is the backstop | `liquidaciones/views.py:193-216,450-454`, `legacy/rassa_back/rassa/models.py:961-966` |
+| L8  | `marcar_pagada` is idempotent; creates `Pago(fk_pedido=NULL)`; inconsistent data states self-heal (pendiente+pago → pagada) or error (pagada sin pago)                                              | `liquidaciones/views.py:491-588`                                                      |
+| L9  | Transient DB errors (deadlock 40P01, lock timeout 55P03, etc.) → 409 with `Retry-After` header; lock_timeout 5 s via `SET LOCAL`                                                                    | `liquidaciones/views.py:219-252`, `liquidaciones/constants.py:20-22`                  |
 
 ### Publications (publicaciones)
 
-| # | Rule | Evidence |
-|---|---|---|
-| Pu1 | Publications and their products can only be created/edited/deleted/restored **on Mondays** (403 otherwise) | `publicacion/views.py:42-70` (decorator applied at `:114,135,253,271,290,308`) |
-| Pu2 | Create targets next Monday + ISO week number (never today, even if today is Monday) | `publicacion/views.py:28-39` |
-| Pu3 | Unique (agricultor, semana) — DB constraint; week range 1–52 — DB check | `legacy/rassa_back/rassa/models.py:351-363` |
-| Pu4 | Publish requires: estado borrador, ≥ 1 activo item, each with stock > 0, precio > 0, unidad, foto; per-item error report otherwise | `publicacion/views.py:150-199` |
-| Pu5 | Lifecycle borrador→publicado→cerrado; deleting a borrador sets `cancelado`; products soft-delete (`activo`/`inactivo`) with restore only while borrador | `publicacion/views.py:135-148,201-221,290-324` |
-| Pu6 | Public `current` endpoint exposes only `publicado` publications of the current week, active items only, max 100 | `publicacion/views.py:327-352` |
+| #   | Rule                                                                                                                                                    | Evidence                                                                       |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Pu1 | Publications and their products can only be created/edited/deleted/restored **on Mondays** (403 otherwise)                                              | `publicacion/views.py:42-70` (decorator applied at `:114,135,253,271,290,308`) |
+| Pu2 | Create targets next Monday + ISO week number (never today, even if today is Monday)                                                                     | `publicacion/views.py:28-39`                                                   |
+| Pu3 | Unique (agricultor, semana) — DB constraint; week range 1–52 — DB check                                                                                 | `legacy/rassa_back/rassa/models.py:351-363`                                    |
+| Pu4 | Publish requires: estado borrador, ≥ 1 activo item, each with stock > 0, precio > 0, unidad, foto; per-item error report otherwise                      | `publicacion/views.py:150-199`                                                 |
+| Pu5 | Lifecycle borrador→publicado→cerrado; deleting a borrador sets `cancelado`; products soft-delete (`activo`/`inactivo`) with restore only while borrador | `publicacion/views.py:135-148,201-221,290-324`                                 |
+| Pu6 | Public `current` endpoint exposes only `publicado` publications of the current week, active items only, max 100                                         | `publicacion/views.py:327-352`                                                 |
 
 ### Stock & waste (mermas)
 
-| # | Rule | Evidence |
-|---|---|---|
-| M1 | Merma registration decrements `ProductoSemanal.stock` under `select_for_update`; insufficient stock → 400 | `waste/views.py:127-143` |
-| M2 | Vendedor may register mermas only on their own pedidos; the producto_semanal must belong to the pedido | `waste/views.py:121-125`, `waste/serializers.py` (`validate`) |
-| M3 | Merma resumen groups by month/week with totals and top affected product (global, not per-period) | `waste/views.py:172-323` |
+| #   | Rule                                                                                                      | Evidence                                                      |
+| --- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| M1  | Merma registration decrements `ProductoSemanal.stock` under `select_for_update`; insufficient stock → 400 | `waste/views.py:127-143`                                      |
+| M2  | Vendedor may register mermas only on their own pedidos; the producto_semanal must belong to the pedido    | `waste/views.py:121-125`, `waste/serializers.py` (`validate`) |
+| M3  | Merma resumen groups by month/week with totals and top affected product (global, not per-period)          | `waste/views.py:172-323`                                      |
 
 ### Pickup scheduling (recolecciones)
 
-| # | Rule | Evidence |
-|---|---|---|
-| R1 | One active (non-cancelled) recolección per (agricultor, fecha) — DB partial unique is the final guarantee; serializer pre-check + agricultor-row lock are UX layers; fixed lock order prevents deadlocks; lock wait capped with `SET LOCAL statement_timeout='30s'` | `legacy/rassa_back/rassa/models.py:828-840`, `recoleccion/views.py:40-52,112-133,315-371` |
-| R2 | `estado` forbidden in create/PATCH bodies (must use `/estado/` or `/cancelar/`) | `recoleccion/views.py:315-320,373-377`, `recoleccion/constants.py:20` |
-| R3 | Strict state machine: `pendiente→{en_ruta,cancelado}`, `en_ruta→{recolectado,cancelado}`; terminal `{recolectado,cancelado}`; late-date exceptions (pendiente vencido → recolectado allowed, → en_ruta blocked) | `recoleccion/serializers.py:17-22,208-260` |
-| R4 | `/estado/` is strict (400 if same state); `/cancelar/` is idempotent (200) | `recoleccion/views.py:424-496` |
-| R5 | Edit allowed only while `pendiente` | `recoleccion/views.py:407-411` |
-| R6 | Create requires future date; PATCH may backdate | `recoleccion/serializers.py:131-140` |
-| R7 | IntegrityError discrimination by constraint name (Postgres `diag.constraint_name`, SQLite heuristic) | `recoleccion/views.py:72-109` |
+| #   | Rule                                                                                                                                                                                                                                                                | Evidence                                                                                  |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| R1  | One active (non-cancelled) recolección per (agricultor, fecha) — DB partial unique is the final guarantee; serializer pre-check + agricultor-row lock are UX layers; fixed lock order prevents deadlocks; lock wait capped with `SET LOCAL statement_timeout='30s'` | `legacy/rassa_back/rassa/models.py:828-840`, `recoleccion/views.py:40-52,112-133,315-371` |
+| R2  | `estado` forbidden in create/PATCH bodies (must use `/estado/` or `/cancelar/`)                                                                                                                                                                                     | `recoleccion/views.py:315-320,373-377`, `recoleccion/constants.py:20`                     |
+| R3  | Strict state machine: `pendiente→{en_ruta,cancelado}`, `en_ruta→{recolectado,cancelado}`; terminal `{recolectado,cancelado}`; late-date exceptions (pendiente vencido → recolectado allowed, → en_ruta blocked)                                                     | `recoleccion/serializers.py:17-22,208-260`                                                |
+| R4  | `/estado/` is strict (400 if same state); `/cancelar/` is idempotent (200)                                                                                                                                                                                          | `recoleccion/views.py:424-496`                                                            |
+| R5  | Edit allowed only while `pendiente`                                                                                                                                                                                                                                 | `recoleccion/views.py:407-411`                                                            |
+| R6  | Create requires future date; PATCH may backdate                                                                                                                                                                                                                     | `recoleccion/serializers.py:131-140`                                                      |
+| R7  | IntegrityError discrimination by constraint name (Postgres `diag.constraint_name`, SQLite heuristic)                                                                                                                                                                | `recoleccion/views.py:72-109`                                                             |
 
 ### Families & chat
 
-| # | Rule | Evidence |
-|---|---|---|
-| F1 | A user can belong to only one active family | `familias/serializers.py:57-88` |
-| F2 | Family soft-delete deactivates memberships and archives the family chat; restore requires a new chief and reactivates the chat | `familias/views.py:38-120` |
-| F3 | Removing the chief clears `fk_jefe_familia` before deactivating the membership | `familias/views.py:219-233` |
-| F4 | Every family gets an idempotent group conversation synced with the family (chief = chat admin) via `chat_sync` service | `legacy/rassa_back/rassa/blueprints/chat/services/chat_sync.py:31-157` |
-| F5 | Family chat name follows the family name unless `nombre_override` is set; family chats cannot be manually renamed/membership-managed | `chat/views.py:376-408,411-459,462-496`, `legacy/rassa_back/rassa/blueprints/chat/signals.py:11-27` (post_save on Familia → `sync_family_chat_name` on commit) |
-| Ch1 | Private conversation creation is idempotent (200 when it already exists — frontend contract) | `chat/views.py:265-300` |
-| Ch2 | Edit/delete messages: own messages only, 15-minute window (`CHAT_EDIT_WINDOW_MINUTES`) | `chat/views.py:157-185,210-238`, `chat/serializers.py:102-122`, `legacy/rassa_back/rassa/settings.py:243` |
-| Ch3 | Deleting a message sets `estado=False` (soft); read-marking is a bulk update excluding own messages | `chat/views.py:188-238` |
-| Ch4 | Chat attachments: ≤ 20 MB, extension whitelist per type, MIME verified with python-magic when available; stored at `MEDIA_ROOT/documentos/{uuid}_{safe_name}` via tmp-file + rename after commit | `chat/serializers.py:51-99`, `chat/views.py:598-667` |
+| #   | Rule                                                                                                                                                                                             | Evidence                                                                                                                                                       |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F1  | A user can belong to only one active family                                                                                                                                                      | `familias/serializers.py:57-88`                                                                                                                                |
+| F2  | Family soft-delete deactivates memberships and archives the family chat; restore requires a new chief and reactivates the chat                                                                   | `familias/views.py:38-120`                                                                                                                                     |
+| F3  | Removing the chief clears `fk_jefe_familia` before deactivating the membership                                                                                                                   | `familias/views.py:219-233`                                                                                                                                    |
+| F4  | Every family gets an idempotent group conversation synced with the family (chief = chat admin) via `chat_sync` service                                                                           | `legacy/rassa_back/rassa/blueprints/chat/services/chat_sync.py:31-157`                                                                                         |
+| F5  | Family chat name follows the family name unless `nombre_override` is set; family chats cannot be manually renamed/membership-managed                                                             | `chat/views.py:376-408,411-459,462-496`, `legacy/rassa_back/rassa/blueprints/chat/signals.py:11-27` (post_save on Familia → `sync_family_chat_name` on commit) |
+| Ch1 | Private conversation creation is idempotent (200 when it already exists — frontend contract)                                                                                                     | `chat/views.py:265-300`                                                                                                                                        |
+| Ch2 | Edit/delete messages: own messages only, 15-minute window (`CHAT_EDIT_WINDOW_MINUTES`)                                                                                                           | `chat/views.py:157-185,210-238`, `chat/serializers.py:102-122`, `legacy/rassa_back/rassa/settings.py:243`                                                      |
+| Ch3 | Deleting a message sets `estado=False` (soft); read-marking is a bulk update excluding own messages                                                                                              | `chat/views.py:188-238`                                                                                                                                        |
+| Ch4 | Chat attachments: ≤ 20 MB, extension whitelist per type, MIME verified with python-magic when available; stored at `MEDIA_ROOT/documentos/{uuid}_{safe_name}` via tmp-file + rename after commit | `chat/serializers.py:51-99`, `chat/views.py:598-667`                                                                                                           |
 
 ### Product images & Google Drive
 
-| # | Rule | Evidence |
-|---|---|---|
-| G1 | Agricultor ownership: only products they have published (Admin bypass) | `legacy/rassa_back/rassa/permissions/ownership.py:12-43` |
-| G2 | Upload validation: MIME whitelist, magic-byte check, ≤ 10 MB (blueprint) / ≤ 5 MB (productos_views), filename sanitized | `legacy/rassa_back/rassa/services/drive_config.py:9-32`, `google_drive.py:161-201,265-297`, `productos_views.py:27-35,151-190` |
-| G3 | Only one principal image per product (DB partial unique + transactional demote/promote) | `legacy/rassa_back/rassa/models.py:791-800`, `producto_imagen/views.py:334-374`, `productos_views.py:193-210,355-377` |
-| G4 | Deleting an image deletes the Drive file; if Drive delete fails, the row survives with `eliminar_pendiente=True` for later cleanup (and is hidden from lists) | `producto_imagen/views.py:243-295` |
-| G5 | If a DB save fails after a Drive upload, the orphan Drive file is deleted (rollback defensivo) | `producto_imagen/views.py:195-208,216-223`, `productos_views.py:267-278` |
-| G6 | Drive images are made public (`anyone→reader`) by design; documented trade-off in module docstring | `google_drive.py:12-41,373-387,495-510` |
+| #   | Rule                                                                                                                                                          | Evidence                                                                                                                       |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| G1  | Agricultor ownership: only products they have published (Admin bypass)                                                                                        | `legacy/rassa_back/rassa/permissions/ownership.py:12-43`                                                                       |
+| G2  | Upload validation: MIME whitelist, magic-byte check, ≤ 10 MB (blueprint) / ≤ 5 MB (productos_views), filename sanitized                                       | `legacy/rassa_back/rassa/services/drive_config.py:9-32`, `google_drive.py:161-201,265-297`, `productos_views.py:27-35,151-190` |
+| G3  | Only one principal image per product (DB partial unique + transactional demote/promote)                                                                       | `legacy/rassa_back/rassa/models.py:791-800`, `producto_imagen/views.py:334-374`, `productos_views.py:193-210,355-377`          |
+| G4  | Deleting an image deletes the Drive file; if Drive delete fails, the row survives with `eliminar_pendiente=True` for later cleanup (and is hidden from lists) | `producto_imagen/views.py:243-295`                                                                                             |
+| G5  | If a DB save fails after a Drive upload, the orphan Drive file is deleted (rollback defensivo)                                                                | `producto_imagen/views.py:195-208,216-223`, `productos_views.py:267-278`                                                       |
+| G6  | Drive images are made public (`anyone→reader`) by design; documented trade-off in module docstring                                                            | `google_drive.py:12-41,373-387,495-510`                                                                                        |
 
 ### User administration
 
-| # | Rule | Evidence |
-|---|---|---|
-| U1 | Admin cannot change their own role or toggle their own state | `admin_views.py:220-224,276-281` |
-| U2 | Cannot demote/deactivate the last active admin (row-locked count check; `select_for_update(nowait=True)`, OperationalError → 423) | `admin_views.py:32-51,120-122` |
-| U3 | Deactivating a user only flips `Usuario.estado` — login does NOT check it (see §10) | `admin_views.py:264-319`, `auth_serializers.py:128-143` |
+| #   | Rule                                                                                                                              | Evidence                                                |
+| --- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| U1  | Admin cannot change their own role or toggle their own state                                                                      | `admin_views.py:220-224,276-281`                        |
+| U2  | Cannot demote/deactivate the last active admin (row-locked count check; `select_for_update(nowait=True)`, OperationalError → 423) | `admin_views.py:32-51,120-122`                          |
+| U3  | Deactivating a user only flips `Usuario.estado` — login does NOT check it (see §10)                                               | `admin_views.py:264-319`, `auth_serializers.py:128-143` |
 
 ### Cross-cutting mechanics
 
@@ -655,13 +655,13 @@ serializers with `.create()` overrides are used.**
 
 Management commands (`legacy/rassa_back/rassa/management/commands/`):
 
-| Command | Purpose | Notes |
-|---|---|---|
+| Command                            | Purpose                                                                                                                                                                                                                                                                  | Notes                                                                    |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
 | `seed_rassa_data.py` (2,473 lines) | Seeds all 32 legacy tables: 4 roles, 7 estados de pedido (incl. legacy `activo`), 4 decisiones de merma, 3 tipos de pago, Nayarit municipios/localidades, demo users/personas/familias/productos/pedidos/pagos/chat/mermas/cortes/recolecciones, demo WAV/PNG generation | `--clear` flag; `update_or_create` per row (`seed_rassa_data.py:97-380`) |
-| `authorize_drive.py` | One-time OAuth2 flow for Google Drive; stores refresh token in `.env` | `authorize_drive.py:1-60`; local redirect `http://localhost:8090/` |
-| `cleanup_orphan_drive_files.py` | Retries Drive deletion for `ProductoImagen.eliminar_pendiente=True`; dry-run by default, `--delete` executes; treats Drive 404 as success | `cleanup_orphan_drive_files.py:1-79` |
-| `reset_sequences.py` | Re-syncs PostgreSQL sequences with max IDs after raw inserts | Postgres-only; `--dry-run` |
-| `sanitizar_documentos.py` | Renames chat attachment files with unsafe characters (e.g. `%20` from React Native) and updates `Documento.url_documento` | `--dry-run` |
+| `authorize_drive.py`               | One-time OAuth2 flow for Google Drive; stores refresh token in `.env`                                                                                                                                                                                                    | `authorize_drive.py:1-60`; local redirect `http://localhost:8090/`       |
+| `cleanup_orphan_drive_files.py`    | Retries Drive deletion for `ProductoImagen.eliminar_pendiente=True`; dry-run by default, `--delete` executes; treats Drive 404 as success                                                                                                                                | `cleanup_orphan_drive_files.py:1-79`                                     |
+| `reset_sequences.py`               | Re-syncs PostgreSQL sequences with max IDs after raw inserts                                                                                                                                                                                                             | Postgres-only; `--dry-run`                                               |
+| `sanitizar_documentos.py`          | Renames chat attachment files with unsafe characters (e.g. `%20` from React Native) and updates `Documento.url_documento`                                                                                                                                                | `--dry-run`                                                              |
 
 **Signals** (registered in `legacy/rassa_back/rassa/apps.py:29-33`):
 
@@ -677,11 +677,11 @@ job and must be run manually (no in-repo cron/systemd/celery config).
 
 **Status: Confirmed.**
 
-| Integration | Purpose | Files | Key facts |
-|---|---|---|---|
-| Google Drive (Drive v3 API) | Storage for product images (both image pipelines) and **not** for chat attachments (those are local files) | `legacy/rassa_back/rassa/services/google_drive.py`, `drive_config.py`, both image views (§3.4) | OAuth2 with refresh token from env (scope `https://www.googleapis.com/auth/drive.file` — `drive_config.py:7`); service cached per process with thread lock; 60 s API timeout; 3 retries with exponential backoff on 429/5xx and network errors (`google_drive.py:219-262`); files under a configurable folder; public read permission applied intentionally (`google_drive.py:12-41`); two upload modes: public-immediately (`upload_image`) and private-then-`make_public` after commit (`upload_image_bytes`) |
-| Google OAuth2 device/browser flow | One-time authorization to obtain the refresh token | `management/commands/authorize_drive.py` | Local redirect URI `http://localhost:8090/` |
-| Email | **None.** No email backend configured beyond Django defaults; no send usage found anywhere in the codebase | — | Confirmed by absence: no `EMAIL_*` settings keys and no `send_mail`/`EmailMessage` calls |
+| Integration                       | Purpose                                                                                                    | Files                                                                                          | Key facts                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Google Drive (Drive v3 API)       | Storage for product images (both image pipelines) and **not** for chat attachments (those are local files) | `legacy/rassa_back/rassa/services/google_drive.py`, `drive_config.py`, both image views (§3.4) | OAuth2 with refresh token from env (scope `https://www.googleapis.com/auth/drive.file` — `drive_config.py:7`); service cached per process with thread lock; 60 s API timeout; 3 retries with exponential backoff on 429/5xx and network errors (`google_drive.py:219-262`); files under a configurable folder; public read permission applied intentionally (`google_drive.py:12-41`); two upload modes: public-immediately (`upload_image`) and private-then-`make_public` after commit (`upload_image_bytes`) |
+| Google OAuth2 device/browser flow | One-time authorization to obtain the refresh token                                                         | `management/commands/authorize_drive.py`                                                       | Local redirect URI `http://localhost:8090/`                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Email                             | **None.** No email backend configured beyond Django defaults; no send usage found anywhere in the codebase | —                                                                                              | Confirmed by absence: no `EMAIL_*` settings keys and no `send_mail`/`EmailMessage` calls                                                                                                                                                                                                                                                                                                                                                                                                                        |
 
 **Inference**: the `requirements.txt` includes `google-auth-httplib2`/`google-auth-oauthlib`
 exclusively for the Drive flow above; no other Google API surface is referenced in the code
@@ -697,17 +697,17 @@ exclusively for the Drive flow above; no other Google API surface is referenced 
 
 Read in `legacy/rassa_back/rassa/settings.py` unless noted:
 
-| Key | Purpose |
-|---|---|
-| `SECRET_KEY` | Django secret; refuses default `changeme-in-production` when `DEBUG=False` (`settings.py:27-29`) |
-| `DEBUG` | Debug mode |
-| `ALLOWED_HOSTS` | Comma-separated hosts |
-| `DATABASE_URL` | Postgres URL via dj-database-url; **falls back to SQLite** `db.sqlite3` when absent (`settings.py:94-95`) |
-| `CORS_ALLOWED_ORIGINS` | Comma-separated origins (defaults target localhost:8081/19006 — Expo dev servers) |
-| `TRUSTED_PROXIES` | Comma-separated proxy IPs trusted for `X-Forwarded-For` (`settings.py:255-256`, `logs/utils.py`) |
-| `GOOGLE_DRIVE_CREDENTIALS_PATH` | Alternate authorized-user JSON file path |
-| `GOOGLE_DRIVE_FOLDER_ID` | Destination Drive folder |
-| `GOOGLE_DRIVE_CLIENT_ID` / `GOOGLE_DRIVE_CLIENT_SECRET` / `GOOGLE_DRIVE_REFRESH_TOKEN` | OAuth2 credentials (also read directly via decouple in `google_drive.py:87-96` and `authorize_drive.py`) |
+| Key                                                                                    | Purpose                                                                                                   |
+| -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `SECRET_KEY`                                                                           | Django secret; refuses default `changeme-in-production` when `DEBUG=False` (`settings.py:27-29`)          |
+| `DEBUG`                                                                                | Debug mode                                                                                                |
+| `ALLOWED_HOSTS`                                                                        | Comma-separated hosts                                                                                     |
+| `DATABASE_URL`                                                                         | Postgres URL via dj-database-url; **falls back to SQLite** `db.sqlite3` when absent (`settings.py:94-95`) |
+| `CORS_ALLOWED_ORIGINS`                                                                 | Comma-separated origins (defaults target localhost:8081/19006 — Expo dev servers)                         |
+| `TRUSTED_PROXIES`                                                                      | Comma-separated proxy IPs trusted for `X-Forwarded-For` (`settings.py:255-256`, `logs/utils.py`)          |
+| `GOOGLE_DRIVE_CREDENTIALS_PATH`                                                        | Alternate authorized-user JSON file path                                                                  |
+| `GOOGLE_DRIVE_FOLDER_ID`                                                               | Destination Drive folder                                                                                  |
+| `GOOGLE_DRIVE_CLIENT_ID` / `GOOGLE_DRIVE_CLIENT_SECRET` / `GOOGLE_DRIVE_REFRESH_TOKEN` | OAuth2 credentials (also read directly via decouple in `google_drive.py:87-96` and `authorize_drive.py`)  |
 
 ### Settings-only constants (not env-driven)
 
@@ -738,26 +738,26 @@ Only `DecisionMerma` and `Merma` are registered (`legacy/rassa_back/rassa/admin.
 import in the producto_imagen blueprint — `conftest.py:1-80`) and a Python 3.14/Django 5.0
 `Context.__copy__` patch in `rassa/tests/__init__.py`.
 
-| Test file | Coverage focus |
-|---|---|
-| `test_profile_and_auth_endpoints.py` (844 l.) | register, profile, change-password endpoints |
-| `test_auth_serializers.py` | auth serializer unit tests |
-| `test_admin_user_protection.py` | single-admin protection, self-edit blocks |
-| `test_role_permissions.py` (242 l.) | HasRole/aliases RBAC unit tests |
-| `test_catalogos.py` (1,364 l.), `test_catalog_crud.py` | municipios/localidades CRUD, trash/restore/permanent |
-| `test_producto_crud.py` (349 l.), `test_producto_edge_cases.py` (771 l.), `test_producto_imagen_crud.py` (606 l.) | product CRUD + filters + image endpoints |
-| `test_publicaciones.py` (869 l.), `test_publicaciones_exhaustivo.py` (616 l.) | Monday rule, publish validation, security edge cases |
-| `test_pedidos.py` (1,113 l.) | cart validation, stock locks, credit limit, state machine |
-| `test_pagos.py` (935 l.) | pago preconditions, folio, idempotency/TOCTOU |
-| `test_liquidaciones.py` (1,938 l.) | calculation, snapshots, duplicates, idempotent payment |
-| `test_cortes.py` (539 l.) | teorico computation, uniqueness, snapshots |
-| `test_recolecciones.py` (1,192 l.) | slot uniqueness, state machine, late-completion rules |
-| `test_chat.py` (1,150 l.), `test_familias.py` (520 l.), `test_familias_chat_integration.py` (297 l.) | chat flows, family CRUD, family↔chat sync |
-| `test_waste.py` (1,008 l.) | mermas + decisiones + resumen |
-| `test_google_drive.py` (352 l.), `test_cleanup_orphan_drive_files.py` (142 l.) | Drive service behavior, orphan cleanup |
-| `test_migrations.py` (258 l.) | migration graph consistency, squash replaces expected set, data-migration idempotency |
-| `test_seed_rassa_data.py` (102 l.) | seed command |
-| `test_sanitizar_documentos.py` (88 l.), `test_utils.py` (29 l.) | filename sanitizer, shared utils |
+| Test file                                                                                                         | Coverage focus                                                                        |
+| ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `test_profile_and_auth_endpoints.py` (844 l.)                                                                     | register, profile, change-password endpoints                                          |
+| `test_auth_serializers.py`                                                                                        | auth serializer unit tests                                                            |
+| `test_admin_user_protection.py`                                                                                   | single-admin protection, self-edit blocks                                             |
+| `test_role_permissions.py` (242 l.)                                                                               | HasRole/aliases RBAC unit tests                                                       |
+| `test_catalogos.py` (1,364 l.), `test_catalog_crud.py`                                                            | municipios/localidades CRUD, trash/restore/permanent                                  |
+| `test_producto_crud.py` (349 l.), `test_producto_edge_cases.py` (771 l.), `test_producto_imagen_crud.py` (606 l.) | product CRUD + filters + image endpoints                                              |
+| `test_publicaciones.py` (869 l.), `test_publicaciones_exhaustivo.py` (616 l.)                                     | Monday rule, publish validation, security edge cases                                  |
+| `test_pedidos.py` (1,113 l.)                                                                                      | cart validation, stock locks, credit limit, state machine                             |
+| `test_pagos.py` (935 l.)                                                                                          | pago preconditions, folio, idempotency/TOCTOU                                         |
+| `test_liquidaciones.py` (1,938 l.)                                                                                | calculation, snapshots, duplicates, idempotent payment                                |
+| `test_cortes.py` (539 l.)                                                                                         | teorico computation, uniqueness, snapshots                                            |
+| `test_recolecciones.py` (1,192 l.)                                                                                | slot uniqueness, state machine, late-completion rules                                 |
+| `test_chat.py` (1,150 l.), `test_familias.py` (520 l.), `test_familias_chat_integration.py` (297 l.)              | chat flows, family CRUD, family↔chat sync                                             |
+| `test_waste.py` (1,008 l.)                                                                                        | mermas + decisiones + resumen                                                         |
+| `test_google_drive.py` (352 l.), `test_cleanup_orphan_drive_files.py` (142 l.)                                    | Drive service behavior, orphan cleanup                                                |
+| `test_migrations.py` (258 l.)                                                                                     | migration graph consistency, squash replaces expected set, data-migration idempotency |
+| `test_seed_rassa_data.py` (102 l.)                                                                                | seed command                                                                          |
+| `test_sanitizar_documentos.py` (88 l.), `test_utils.py` (29 l.)                                                   | filename sanitizer, shared utils                                                      |
 
 CI (`legacy/rassa_back/.github/workflows/ci.yml`): ruff lint → pytest on Postgres 16 →
 `manage.py check` + `makemigrations --check --dry-run`. Local: `make ci` (Makefile).
@@ -772,7 +772,7 @@ CI (`legacy/rassa_back/.github/workflows/ci.yml`): ruff lint → pytest on Postg
    `user.is_active` (the Django user) but not the business `Usuario.estado` flag
    (`legacy/rassa_back/rassa/auth_serializers.py:128-143`). A deactivated `Usuario` can keep
    using valid JWTs; only some modules check `estado` (chat: `chat/views.py:38-59,688-695`;
-   admin serializers; recolección validation of the *target* agricultor). Enforcement is
+   admin serializers; recolección validation of the _target_ agricultor). Enforcement is
    inconsistent across modules.
 2. **Refresh-token rotation without post-rotation blacklist.** `ROTATE_REFRESH_TOKENS=True`
    but `BLACKLIST_AFTER_ROTATION` is unset (`settings.py:165-172`), so rotated-out refresh

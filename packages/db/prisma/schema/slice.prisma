@@ -25,6 +25,7 @@ model Localidad {
   version       Int       @default(1)
   actualizadoEn DateTime  @default(now()) @updatedAt @map("actualizado_en") @db.Timestamptz(6)
   municipio     Municipio @relation(fields: [fkMunicipio], references: [id], onDelete: Cascade)
+  personas      Persona[]
 
   @@index([fkMunicipio])
   @@map("localidad")
@@ -61,8 +62,8 @@ model SyncCambio {
   tablaOrigen String   @map("tabla_origen")
   idFila      String   @map("id_fila") @db.Uuid
   operacion   String
-  // slice-decision: actor is a logical reference (no hard FK per M-1a item 6) with no usuario
-  // model in the slice, so it stays free-form text instead of a UUID column.
+  // Actor is a logical reference with no hard FK (M-1a item 6); since the P0 auth module it
+  // carries the authenticated Usuario id (UUID string), replacing the slice dev stub.
   actor       String?
   creadoEn    DateTime @map("creado_en") @default(now()) @db.Timestamptz(6)
 
@@ -74,8 +75,8 @@ model SyncCambio {
 // effect (synchronization.md §7).
 model SyncOperacion {
   id        String   @id @db.Uuid
-  // slice-decision: logical reference (no usuario model in the slice), same rationale as
-  // SyncCambio.actor — free-form text, not a UUID column.
+  // Logical reference to the authenticated Usuario (no hard FK, same rationale as
+  // SyncCambio.actor); carries the real user id since the P0 auth module.
   fkUsuario String   @map("fk_usuario")
   coleccion String
   docId     String   @map("doc_id") @db.Uuid

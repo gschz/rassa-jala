@@ -1,11 +1,46 @@
-import { Link } from "@tanstack/react-router";
+import { useMutation } from "@tanstack/react-query";
+import { Link, useNavigate } from "@tanstack/react-router";
 
+import { sessionExpired, useSession } from "@/lib/auth/session";
+import { trpc } from "@/utils/trpc";
+
+import { Button } from "@rassa-jala/ui/components/button";
 import { ModeToggle } from "./mode-toggle";
 
+/** Session identity + real server-side logout (P0 Autenticación). */
+function Sesion() {
+  const session = useSession();
+  const navigate = useNavigate();
+  const logout = useMutation(
+    trpc.auth.logout.mutationOptions({
+      onSettled: () => {
+        // The server revoked the refresh token; drop the in-memory session and leave.
+        sessionExpired();
+        void navigate({ to: "/login" });
+      },
+    }),
+  );
+  if (!session.user) return null;
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-sm text-muted-foreground">{session.user.email}</span>
+      <span className="rounded-full border px-2 py-0.5 text-xs text-muted-foreground">
+        {session.user.rol}
+      </span>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => logout.mutate()}
+        disabled={logout.isPending}
+      >
+        Salir
+      </Button>
+    </div>
+  );
+}
+
 export default function Header() {
-  const links = [
-    { to: "/", label: "Catálogos" },
-  ] as const;
+  const links = [{ to: "/", label: "Catálogos" }] as const;
 
   return (
     <div>
@@ -20,6 +55,7 @@ export default function Header() {
           })}
         </nav>
         <div className="flex items-center gap-2">
+          <Sesion />
           <ModeToggle />
         </div>
       </div>

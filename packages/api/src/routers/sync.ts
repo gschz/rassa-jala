@@ -3,19 +3,14 @@ import { z } from "zod";
 
 import type { Database, Prisma } from "@rassa-jala/db";
 
-import { publicProcedure, router } from "../index";
+import { protectedProcedure, router } from "../index";
 import { ROLE } from "../context";
 
 // Synchronization protocol — normative sources: docs/synchronization.md (§4 PULL, §5 PUSH,
 // §7 idempotency, §8 deletions, §14 slice scope) and docs/database.md (§6.2 collection map,
 // §6.3 document↔row transform, §7.1 M-1a/M-1b, SP-2/SP-3).
 
-export const COLECCIONES = [
-  "municipios",
-  "localidades",
-  "categorias",
-  "unidades",
-] as const;
+export const COLECCIONES = ["municipios", "localidades", "categorias", "unidades"] as const;
 export type Coleccion = (typeof COLECCIONES)[number];
 
 const VEREDICTO = {
@@ -95,24 +90,12 @@ export interface ResultadoPush {
 // ---- Prisma row types ----
 
 type ElementoDe<A> = A extends readonly (infer T)[] ? T : never;
-type FilaSyncCambio = ElementoDe<
-  Awaited<ReturnType<Database["syncCambio"]["findMany"]>>
->;
-type FilaSyncOperacion = ElementoDe<
-  Awaited<ReturnType<Database["syncOperacion"]["findMany"]>>
->;
-type FilaLocalidad = ElementoDe<
-  Awaited<ReturnType<Database["localidad"]["findMany"]>>
->;
-type FilaMunicipio = ElementoDe<
-  Awaited<ReturnType<Database["municipio"]["findMany"]>>
->;
-type FilaCategoria = ElementoDe<
-  Awaited<ReturnType<Database["categoriaProducto"]["findMany"]>>
->;
-type FilaUnidad = ElementoDe<
-  Awaited<ReturnType<Database["unidad"]["findMany"]>>
->;
+type FilaSyncCambio = ElementoDe<Awaited<ReturnType<Database["syncCambio"]["findMany"]>>>;
+type FilaSyncOperacion = ElementoDe<Awaited<ReturnType<Database["syncOperacion"]["findMany"]>>>;
+type FilaLocalidad = ElementoDe<Awaited<ReturnType<Database["localidad"]["findMany"]>>>;
+type FilaMunicipio = ElementoDe<Awaited<ReturnType<Database["municipio"]["findMany"]>>>;
+type FilaCategoria = ElementoDe<Awaited<ReturnType<Database["categoriaProducto"]["findMany"]>>>;
+type FilaUnidad = ElementoDe<Awaited<ReturnType<Database["unidad"]["findMany"]>>>;
 
 // ---- PULL (§4) ----
 
@@ -137,10 +120,7 @@ type DocPullDe<C extends Coleccion> = {
 // Only advance the checkpoint over contiguous seq prefixes; a gap younger than the grace window
 // cuts the batch short (an in-flight transaction may still own the missing seqs), an older gap is
 // assumed consumed by a rolled-back transaction and skipped (§4.2).
-function cortarEnBrechas(
-  filas: FilaSyncCambio[],
-  checkpoint: bigint,
-): FilaSyncCambio[] {
+function cortarEnBrechas(filas: FilaSyncCambio[], checkpoint: bigint): FilaSyncCambio[] {
   const entregadas: FilaSyncCambio[] = [];
   let esperado = checkpoint + 1n;
   for (const fila of filas) {
@@ -220,21 +200,19 @@ async function resolverDocumentos<C extends Coleccion>(
     case "municipios": {
       const filas = await db.municipio.findMany({ where: { id: { in: ids } } });
       const porId = new Map(filas.map((fila) => [fila.id, fila] as const));
-      return lote.map(
-        (fila): MunicipioPullDoc =>
-          fila.operacion === OPERACION.DELETE || !porId.get(fila.idFila)
-            ? { id: fila.idFila, _deleted: true }
-            : aDocMunicipio(porId.get(fila.idFila) as FilaMunicipio),
+      return lote.map((fila): MunicipioPullDoc =>
+        fila.operacion === OPERACION.DELETE || !porId.get(fila.idFila)
+          ? { id: fila.idFila, _deleted: true }
+          : aDocMunicipio(porId.get(fila.idFila) as FilaMunicipio),
       ) as Array<DocPullDe<C>>;
     }
     case "localidades": {
       const filas = await db.localidad.findMany({ where: { id: { in: ids } } });
       const porId = new Map(filas.map((fila) => [fila.id, fila] as const));
-      return lote.map(
-        (fila): LocalidadPullDoc =>
-          fila.operacion === OPERACION.DELETE || !porId.get(fila.idFila)
-            ? { id: fila.idFila, _deleted: true }
-            : aDocLocalidad(porId.get(fila.idFila) as FilaLocalidad),
+      return lote.map((fila): LocalidadPullDoc =>
+        fila.operacion === OPERACION.DELETE || !porId.get(fila.idFila)
+          ? { id: fila.idFila, _deleted: true }
+          : aDocLocalidad(porId.get(fila.idFila) as FilaLocalidad),
       ) as Array<DocPullDe<C>>;
     }
     case "categorias": {
@@ -242,28 +220,28 @@ async function resolverDocumentos<C extends Coleccion>(
         where: { id: { in: ids } },
       });
       const porId = new Map(filas.map((fila) => [fila.id, fila] as const));
-      return lote.map(
-        (fila): CategoriaPullDoc =>
-          fila.operacion === OPERACION.DELETE || !porId.get(fila.idFila)
-            ? { id: fila.idFila, _deleted: true }
-            : aDocCategoria(porId.get(fila.idFila) as FilaCategoria),
+      return lote.map((fila): CategoriaPullDoc =>
+        fila.operacion === OPERACION.DELETE || !porId.get(fila.idFila)
+          ? { id: fila.idFila, _deleted: true }
+          : aDocCategoria(porId.get(fila.idFila) as FilaCategoria),
       ) as Array<DocPullDe<C>>;
     }
     case "unidades": {
       const filas = await db.unidad.findMany({ where: { id: { in: ids } } });
       const porId = new Map(filas.map((fila) => [fila.id, fila] as const));
-      return lote.map(
-        (fila): UnidadPullDoc =>
-          fila.operacion === OPERACION.DELETE || !porId.get(fila.idFila)
-            ? { id: fila.idFila, _deleted: true }
-            : aDocUnidad(porId.get(fila.idFila) as FilaUnidad),
+      return lote.map((fila): UnidadPullDoc =>
+        fila.operacion === OPERACION.DELETE || !porId.get(fila.idFila)
+          ? { id: fila.idFila, _deleted: true }
+          : aDocUnidad(porId.get(fila.idFila) as FilaUnidad),
       ) as Array<DocPullDe<C>>;
     }
   }
 }
 
 function makePullProcedure<C extends Coleccion>(coleccion: C) {
-  return publicProcedure
+  // Global S1 catalogs are readable by ANY authenticated user (database.md §6.2 global
+  // scoping); only authentication is enforced here, no role filter.
+  return protectedProcedure
     .input(
       z.object({
         coleccion: z.literal(coleccion),
@@ -289,9 +267,7 @@ function makePullProcedure<C extends Coleccion>(coleccion: C) {
       const documentos = await resolverDocumentos(coleccion, lote, ctx.db);
 
       const ultimaFila = lote.at(-1);
-      const seqFinal = ultimaFila
-        ? Number(ultimaFila.id)
-        : (input.checkpoint?.seq ?? 0);
+      const seqFinal = ultimaFila ? Number(ultimaFila.id) : (input.checkpoint?.seq ?? 0);
       if (!Number.isSafeInteger(seqFinal)) {
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
@@ -359,8 +335,7 @@ function veredictoAlmacenado(fila: FilaSyncOperacion): ResultadoPush {
     veredicto: fila.veredicto as Veredicto,
   };
   if (respuesta.motivo !== undefined) resultado.motivo = respuesta.motivo;
-  if (respuesta.estadoServidor !== undefined)
-    resultado.estadoServidor = respuesta.estadoServidor;
+  if (respuesta.estadoServidor !== undefined) resultado.estadoServidor = respuesta.estadoServidor;
   return resultado;
 }
 
@@ -383,8 +358,7 @@ async function aplicarOperacionLocalidad(
       });
       // The row's estado mirrors the tombstone flag; _deleted wins when they disagree (§6.3.5).
       const estadoFila =
-        operacion.op === OPERACION.DELETE ||
-        operacion.nuevoEstado._deleted === true
+        operacion.op === OPERACION.DELETE || operacion.nuevoEstado._deleted === true
           ? false
           : (operacion.nuevoEstado.estado ?? true);
 
@@ -392,13 +366,9 @@ async function aplicarOperacionLocalidad(
         // §5.2 step 4 — create requires a nonexistent row; otherwise conflict with real state.
         if (actual) {
           const estadoServidor = aDocLocalidad(actual);
-          await registrarOperacion(
-            tx,
-            operacion,
-            idUsuario,
-            VEREDICTO.CONFLICTO,
-            { estadoServidor },
-          );
+          await registrarOperacion(tx, operacion, idUsuario, VEREDICTO.CONFLICTO, {
+            estadoServidor,
+          });
           return { ...base, veredicto: VEREDICTO.CONFLICTO, estadoServidor };
         }
         // Domain rule before the version check (§5.2 steps 3–4).
@@ -408,16 +378,10 @@ async function aplicarOperacionLocalidad(
         if (!municipio) {
           const estadoServidor = tombstoneLocalidad(operacion);
           const motivo = "fkMunicipio does not exist";
-          await registrarOperacion(
-            tx,
-            operacion,
-            idUsuario,
-            VEREDICTO.RECHAZADA,
-            {
-              motivo,
-              estadoServidor,
-            },
-          );
+          await registrarOperacion(tx, operacion, idUsuario, VEREDICTO.RECHAZADA, {
+            motivo,
+            estadoServidor,
+          });
           return {
             ...base,
             veredicto: VEREDICTO.RECHAZADA,
@@ -442,13 +406,7 @@ async function aplicarOperacionLocalidad(
             actor: idUsuario,
           },
         });
-        await registrarOperacion(
-          tx,
-          operacion,
-          idUsuario,
-          VEREDICTO.APLICADA,
-          null,
-        );
+        await registrarOperacion(tx, operacion, idUsuario, VEREDICTO.APLICADA, null);
         return { ...base, veredicto: VEREDICTO.APLICADA };
       }
 
@@ -456,24 +414,15 @@ async function aplicarOperacionLocalidad(
         if (operacion.op === OPERACION.DELETE) {
           // Deleting a row that never existed server-side already achieves the end state.
           const motivo = "delete of a nonexistent row; no-op";
-          await registrarOperacion(
-            tx,
-            operacion,
-            idUsuario,
-            VEREDICTO.APLICADA,
-            { motivo },
-          );
+          await registrarOperacion(tx, operacion, idUsuario, VEREDICTO.APLICADA, { motivo });
           return { ...base, veredicto: VEREDICTO.APLICADA, motivo };
         }
         const estadoServidor = tombstoneLocalidad(operacion);
         const motivo = "row does not exist on the server";
-        await registrarOperacion(
-          tx,
-          operacion,
-          idUsuario,
-          VEREDICTO.RECHAZADA,
-          { motivo, estadoServidor },
-        );
+        await registrarOperacion(tx, operacion, idUsuario, VEREDICTO.RECHAZADA, {
+          motivo,
+          estadoServidor,
+        });
         return {
           ...base,
           veredicto: VEREDICTO.RECHAZADA,
@@ -490,16 +439,10 @@ async function aplicarOperacionLocalidad(
         if (!municipio) {
           const estadoServidor = aDocLocalidad(actual);
           const motivo = "fkMunicipio does not exist";
-          await registrarOperacion(
-            tx,
-            operacion,
-            idUsuario,
-            VEREDICTO.RECHAZADA,
-            {
-              motivo,
-              estadoServidor,
-            },
-          );
+          await registrarOperacion(tx, operacion, idUsuario, VEREDICTO.RECHAZADA, {
+            motivo,
+            estadoServidor,
+          });
           return {
             ...base,
             veredicto: VEREDICTO.RECHAZADA,
@@ -510,13 +453,7 @@ async function aplicarOperacionLocalidad(
       }
       if (operacion.versionAsumida === null) {
         const estadoServidor = aDocLocalidad(actual);
-        await registrarOperacion(
-          tx,
-          operacion,
-          idUsuario,
-          VEREDICTO.CONFLICTO,
-          { estadoServidor },
-        );
+        await registrarOperacion(tx, operacion, idUsuario, VEREDICTO.CONFLICTO, { estadoServidor });
         return { ...base, veredicto: VEREDICTO.CONFLICTO, estadoServidor };
       }
 
@@ -534,16 +471,8 @@ async function aplicarOperacionLocalidad(
         const servidor = await tx.localidad.findUnique({
           where: { id: operacion.docId },
         });
-        const estadoServidor = servidor
-          ? aDocLocalidad(servidor)
-          : tombstoneLocalidad(operacion);
-        await registrarOperacion(
-          tx,
-          operacion,
-          idUsuario,
-          VEREDICTO.CONFLICTO,
-          { estadoServidor },
-        );
+        const estadoServidor = servidor ? aDocLocalidad(servidor) : tombstoneLocalidad(operacion);
+        await registrarOperacion(tx, operacion, idUsuario, VEREDICTO.CONFLICTO, { estadoServidor });
         return { ...base, veredicto: VEREDICTO.CONFLICTO, estadoServidor };
       }
       // Soft-delete conserves the row and records 'update' in the outbox (§8); clients never
@@ -556,13 +485,7 @@ async function aplicarOperacionLocalidad(
           actor: idUsuario,
         },
       });
-      await registrarOperacion(
-        tx,
-        operacion,
-        idUsuario,
-        VEREDICTO.APLICADA,
-        null,
-      );
+      await registrarOperacion(tx, operacion, idUsuario, VEREDICTO.APLICADA, null);
       return { ...base, veredicto: VEREDICTO.APLICADA };
     });
   } catch (error) {
@@ -577,7 +500,7 @@ async function aplicarOperacionLocalidad(
 }
 
 function makePushProcedure() {
-  return publicProcedure
+  return protectedProcedure
     .input(
       z.object({
         coleccion: z.literal("localidades"),
@@ -585,11 +508,12 @@ function makePushProcedure() {
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      // slice-decision: auth module replaces this (P0) — fixed dev-stub user checked here.
-      if (ctx.user.role !== ROLE.ADMIN) {
+      // Legacy IsAdminOrReadOnly semantics: catalog writes are Admin-only; the role comes
+      // from the verified access JWT (data-driven, backend-audit §2.5).
+      if (ctx.user.rol !== ROLE.ADMIN) {
         throw new TRPCError({
           code: "FORBIDDEN",
-          message: "sync.push requires the admin role",
+          message: "Solo el rol Admin puede modificar localidades",
         });
       }
       const resultados: ResultadoPush[] = await Promise.all(

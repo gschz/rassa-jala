@@ -102,6 +102,25 @@ const UNIDADES = [
   },
 ] as const;
 
+// Data-driven roles (backend-audit §2.1): the four legacy rows, Spanish names as canonical
+// (F-26 — the DB holds the Spanish strings).
+const ROLES = [
+  { id: "37e142f3-8256-47fb-bc94-056e6e7bfbb7", nombre: "Admin" },
+  { id: "f9336c97-5bc5-48c6-a76c-af25c62a7a7e", nombre: "Agricultor" },
+  { id: "f2ec4fa4-5ea2-4edf-942f-66fe885a68b1", nombre: "Vendedor" },
+  { id: "71348f96-7835-4d65-b44e-343f507f1bbe", nombre: "Cliente" },
+] as const;
+
+// Dev login users. Passwords are only ever hashed here (never printed).
+const ADMIN_ID = "aa286d14-7060-46ed-a1ca-d978ee4974b7";
+const ADMIN_PERSONA_ID = "08c34989-d67c-4f5e-89f4-c9d93a519378";
+const BLOQUEADO_ID = "25ea618b-5e71-4d76-9a5f-11ec21fb7f2b";
+const BLOQUEADO_PERSONA_ID = "4fa730b1-e705-4620-a881-3f07ccf09254";
+// Active non-admin user: proves the Admin-only push role check (legacy IsAdminOrReadOnly).
+const AGRICULTOR_ID = "5c2fa9c1-8e6f-4b0e-9f38-7a1d5c4e2b90";
+const AGRICULTOR_PERSONA_ID = "9d3e77aa-2f6c-4c58-b1e4-0a8f5d6e7c21";
+const DEV_PASSWORD = "RassaDev2026!";
+
 // Insert the business row and its outbox row together; skip both when already seeded.
 async function sembrar(
   tx: Tx,
@@ -139,8 +158,7 @@ async function main(): Promise<void> {
     await Promise.all(
       LOCALIDADES.map((l) => {
         const fkMunicipio = idsMunicipio.get(l.municipio);
-        if (!fkMunicipio)
-          throw new Error(`Municipio desconocido en seed: ${l.municipio}`);
+        if (!fkMunicipio) throw new Error(`Municipio desconocido en seed: ${l.municipio}`);
         return sembrar(tx, "localidad", l.id, () =>
           tx.localidad.create({
             data: { id: l.id, fkMunicipio, nombre: l.nombre },
@@ -171,10 +189,77 @@ async function main(): Promise<void> {
         ),
       ),
     );
+
+    const idRolPorNombre = new Map(ROLES.map((r) => [r.nombre, r.id]));
+
+    await Promise.all(
+      ROLES.map((r) =>
+        sembrar(tx, "roles", r.id, () => tx.rol.create({ data: { id: r.id, nombre: r.nombre } })),
+      ),
+    );
+
+    const hashDev = await Bun.password.hash(DEV_PASSWORD, { algorithm: "argon2id" });
+
+    // Admin (login works), a disabled user (F-01 proof: login must reject estado=false),
+    // and an active non-admin (role-check proof: push is Admin-only).
+    await Promise.all([
+      sembrar(tx, "persona", ADMIN_PERSONA_ID, () =>
+        tx.persona.create({
+          data: { id: ADMIN_PERSONA_ID, nombre: "Admin", apellidoPaterno: "Rassa" },
+        }),
+      ),
+      sembrar(tx, "persona", BLOQUEADO_PERSONA_ID, () =>
+        tx.persona.create({
+          data: { id: BLOQUEADO_PERSONA_ID, nombre: "Bloqueado", apellidoPaterno: "Rassa" },
+        }),
+      ),
+      sembrar(tx, "persona", AGRICULTOR_PERSONA_ID, () =>
+        tx.persona.create({
+          data: { id: AGRICULTOR_PERSONA_ID, nombre: "Agricultor", apellidoPaterno: "Rassa" },
+        }),
+      ),
+    ]);
+
+    await Promise.all([
+      sembrar(tx, "usuario", ADMIN_ID, () =>
+        tx.usuario.create({
+          data: {
+            id: ADMIN_ID,
+            correo: "admin@rassa.local",
+            passwordHash: hashDev,
+            fkPersona: ADMIN_PERSONA_ID,
+            fkRol: idRolPorNombre.get("Admin")!,
+          },
+        }),
+      ),
+      sembrar(tx, "usuario", BLOQUEADO_ID, () =>
+        tx.usuario.create({
+          data: {
+            id: BLOQUEADO_ID,
+            correo: "bloqueado@rassa.local",
+            passwordHash: hashDev,
+            fkPersona: BLOQUEADO_PERSONA_ID,
+            fkRol: idRolPorNombre.get("Cliente")!,
+            estado: false,
+          },
+        }),
+      ),
+      sembrar(tx, "usuario", AGRICULTOR_ID, () =>
+        tx.usuario.create({
+          data: {
+            id: AGRICULTOR_ID,
+            correo: "agricultor@rassa.local",
+            passwordHash: hashDev,
+            fkPersona: AGRICULTOR_PERSONA_ID,
+            fkRol: idRolPorNombre.get("Agricultor")!,
+          },
+        }),
+      ),
+    ]);
   });
 
   console.log(
-    "Dev seed applied: 5 municipios, 10 localidades, 4 categorías, 3 unidades",
+    "Dev seed applied: 5 municipios, 10 localidades, 4 categorías, 3 unidades, 4 roles, admin + agricultor + bloqueado",
   );
   await db.$disconnect();
 }

@@ -16,6 +16,7 @@
     "@rassa-jala/db": "workspace:*",
     "@trpc/server": "catalog:",
     "hono": "^4.10.7",
+    "jose": "^6.2.17",
     "varlock": "catalog:",
     "zod": "catalog:"
   },

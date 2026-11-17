@@ -8,20 +8,22 @@ import {
 } from "@rassa-jala/ui/components/card";
 import { Input } from "@rassa-jala/ui/components/input";
 import { Label } from "@rassa-jala/ui/components/label";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { useRxQuery } from "rxdb/plugins/react";
 import type { MangoQuery } from "rxdb/plugins/core";
 import { toast } from "sonner";
 
+import { refreshSession } from "@/lib/auth/http";
+import { getAccessToken } from "@/lib/auth/session";
 import {
   getDatabase,
   type LocalidadDoc,
   type MunicipioDoc,
   type RassaDatabase,
 } from "@/lib/rxdb/database";
-import { startReplications, type ReplicationSet } from "@/lib/rxdb/replication";
+import { startReplications } from "@/lib/rxdb/replication";
 import {
   trackPending,
   useSyncStatus,
@@ -47,6 +49,13 @@ import {
  */
 
 export const Route = createFileRoute("/")({
+  // Protected route (P0 auth): without an in-memory access token, try one silent refresh
+  // (the httpOnly cookie may still be valid after a reload); otherwise → /login.
+  beforeLoad: async () => {
+    if (!getAccessToken() && !(await refreshSession())) {
+      throw redirect({ to: "/login" });
+    }
+  },
   component: HomeComponent,
 });
 
@@ -126,8 +135,7 @@ function CatalogoPage({ db }: Readonly<{ db: RassaDatabase }>) {
       <div>
         <h1 className="text-xl font-semibold">Catálogos</h1>
         <p className="text-sm text-muted-foreground">
-          Corte vertical — lectura offline (PULL) y escritura de localidades
-          (PUSH).
+          Corte vertical — lectura offline (PULL) y escritura de localidades (PUSH).
         </p>
       </div>
 
@@ -136,17 +144,11 @@ function CatalogoPage({ db }: Readonly<{ db: RassaDatabase }>) {
       <div className="grid gap-4 md:grid-cols-2">
         <NuevaLocalidadForm
           db={db}
-          municipios={municipios.results.map(
-            (doc) => doc.toJSON() as MunicipioDoc,
-          )}
+          municipios={municipios.results.map((doc) => doc.toJSON() as MunicipioDoc)}
         />
         <ListaLocalidades
-          localidades={localidades.results.map(
-            (doc) => doc.toJSON() as LocalidadDoc,
-          )}
-          municipios={municipios.results.map(
-            (doc) => doc.toJSON() as MunicipioDoc,
-          )}
+          localidades={localidades.results.map((doc) => doc.toJSON() as LocalidadDoc)}
+          municipios={municipios.results.map((doc) => doc.toJSON() as MunicipioDoc)}
         />
       </div>
 
@@ -320,11 +322,7 @@ function NuevaLocalidadForm({
             disabled={!nombre.trim() || !fkMunicipio || guardando}
             className="w-full"
           >
-            {guardando ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              "Crear localidad"
-            )}
+            {guardando ? <Loader2 className="h-4 w-4 animate-spin" /> : "Crear localidad"}
           </Button>
           {municipios.length === 0 && (
             <p className="text-xs text-muted-foreground">
@@ -364,8 +362,7 @@ function ListaLocalidades({
             // A doc still carrying its idempotency key has not been
             // confirmed by the server yet (its state round-trips only after
             // the push verdict), so it can never show as confirmed.
-            const pendiente =
-              pendingIds.has(localidad.id) || localidad.syncOpId != null;
+            const pendiente = pendingIds.has(localidad.id) || localidad.syncOpId != null;
             return (
               <li
                 key={localidad.id}

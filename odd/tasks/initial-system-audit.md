@@ -1,23 +1,28 @@
 # Feature: initial-system-audit
 
 ## Objective
+
 Full technical audit of the legacy RassaJala system (`legacy/rassa_back`: Django 5 + DRF; `legacy/rassa_front`: Expo mobile + Vite/React 19 web + shared packages), producing 5 audit documents in `docs/01-audit/` as the factual basis for a new independent app (React+TS, Bun+tRPC, Prisma, Supabase Postgres, RxDB, offline-first PWA).
 
 ## Problem / Why
+
 The new implementation must not reuse legacy code; it needs a verified inventory of the original data model, business rules, features, and frontend-backend correspondence before design starts.
 
 ## Authorized scope (mutation)
+
 - CREATE: `docs/01-audit/backend-audit.md`, `frontend-audit.md`, `database-audit.md`, `functional-map.md`, `audit-findings.md`
 - CREATE: `odd/tasks/initial-system-audit.md` (this tracker)
 - `legacy/**`: strictly READ-ONLY. No schema changes, no implementation, no code reuse.
 
 ## Constraints
+
 - Every finding cites repo-relative legacy paths (line refs where useful).
 - CONFIRMED vs INFERRED explicitly separated; nothing assumed beyond the repos.
 - Missing/ambiguous/contradictory info documented, never invented.
 - Audit docs in English (neutral professional); conversation in Spanish.
 
 ## Route declaration (per ODD delegation triggers)
+
 - T1 recon + tracker: inline (mechanical routing reads).
 - T2 backend+database docs: DELEGATED writer (mapping trigger: 149 py files + bruno/ + db/ far exceed 4 files; writer trigger: 2 non-trivial files).
 - T3a mobile exploration: DELEGATED explorer (read-only mapping, 300+ files).
@@ -28,12 +33,15 @@ The new implementation must not reuse legacy code; it needs a verified inventory
 - T6 close: inline (engram mirror, session summary, report).
 
 ## TDD
+
 Off — documentation-only deliverables, no test runner applies (source: task nature). Functional checks: structural readback + cited-path existence verification + `git status` isolation check.
 
 ## Delivery
+
 Forecast: 5 markdown docs, est. 1200–2400 authored lines total. Strategy: ask-on-risk (default). Agents create no commits/PRs: runtime policy keeps commits user-owned; delivery is the user's decision under ordinary repo policy.
 
 ## Checklist
+
 - [x] T1 recon (stacks, sizes, skill registry, engram) — 2026-11-16
 - [x] T2 backend-audit.md + database-audit.md (worker A, delegated)
 - [ ] T3a mobile exploration report → engram `odd/initial-system-audit/frontend-mobile-explore`
@@ -44,6 +52,7 @@ Forecast: 5 markdown docs, est. 1200–2400 authored lines total. Strategy: ask-
 - [x] T6 close: mirror update + session summary + final report
 
 ## Acceptance criteria
+
 - 5 deliverables exist in `docs/01-audit/` with confirmed/inferred separation and legacy file references.
 - Data model reconstructed: PK/FK, relations, required fields, indexes, enums, constraints, migrations inventory.
 - Functional map links frontend features to backend endpoints/models/operations; incomplete features and inconsistencies flagged.
@@ -51,6 +60,7 @@ Forecast: 5 markdown docs, est. 1200–2400 authored lines total. Strategy: ask-
 - Open questions documented explicitly.
 
 ## Progress
+
 - T1 done 2026-11-16: Django 5+DRF backend (149 py files, bruno API collections, db/, docs/); frontend Expo mobile (319 files) + Vite web (268 files) + 4 shared packages (48). No prior audit artifacts found.
 - T2 done 2026-11-16: worker wrote backend-audit.md (11 sections, 14 resource families, 60+ business rules, 85 cited legacy paths) + database-audit.md (34 entities, 31 migrations, ER diagram). Worker self-verified citations + git isolation; parent readback pending (T5). Key: login does not check Usuario.estado; db/archive SQL superseded; PG-specific concurrency; dual Google Drive image pipelines; financial invariants only in app code.
 - T3c done 2026-11-16: frontend-audit.md written from engram reports 922/923/924 + 6 spot checks; 142 distinct legacy paths cited (grep clean), git isolation ok. Key: admin CRUD mocked (web local-state AdminCrudTable, mobile hardcoded AdminProductsScreen); checkout machinery divergent (mobile AsyncStorage in-flight record vs web checkoutGuard.ts 419L dual-storage), idem_pago_* never cleaned up; 106 API ops / ~90 paths; PUT vs PATCH verb mismatch on /productos/{id}/; role vocabulary conflict (mobile EN farmer|seller|admin|buyer vs web ES agricultor|vendedor|admin|cliente); dead code: packages/api, packages/design-tokens, AdminDashboardScreen/AdminUsersScreen, routes/admin.tsx. Parent readback done (T5).

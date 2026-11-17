@@ -46,7 +46,7 @@
     "@rassa-jala/config": "workspace:*",
     "@types/bun": "catalog:",
     "oxfmt": "^0.74.0",
-    "oxlint": "^1.87.0",
+    "oxlint": "1.89.0",
     "rolldown": "1.2.15",
     "typescript": "catalog:",
     "varlock": "catalog:",

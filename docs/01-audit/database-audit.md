@@ -21,11 +21,11 @@ questions are collected at the end; nothing is invented to fill them.
 
 Three schema artifacts exist:
 
-| Artifact | Role | Evidence |
-|---|---|---|
-| `legacy/rassa_back/rassa/models.py` | Current domain models (34 models, Spanish snake_case column names preserved for compatibility) | `models.py:1-13` (module docstring states it maps the original `rassa_jala.sql` tables) |
-| `legacy/rassa_back/rassa/migrations/` | 31 migration files (0001 → 0027, includes one squash and four merges) — **the authoritative history actually applied to databases** | Applied by `manage.py migrate`; CI enforces `makemigrations --check` (`legacy/rassa_back/.github/workflows/ci.yml`, "Check for missing migrations" step) |
-| `legacy/rassa_back/db/archive/rassa_jala.sql` | **Archived** original hand-written schema (v3.1, 32 tables) + seeders; superseded by migrations | File header: "Migración unificada: Esquema + Seeders"; placed under `db/archive/` |
+| Artifact                                      | Role                                                                                                                                | Evidence                                                                                                                                                 |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `legacy/rassa_back/rassa/models.py`           | Current domain models (34 models, Spanish snake_case column names preserved for compatibility)                                      | `models.py:1-13` (module docstring states it maps the original `rassa_jala.sql` tables)                                                                  |
+| `legacy/rassa_back/rassa/migrations/`         | 31 migration files (0001 → 0027, includes one squash and four merges) — **the authoritative history actually applied to databases** | Applied by `manage.py migrate`; CI enforces `makemigrations --check` (`legacy/rassa_back/.github/workflows/ci.yml`, "Check for missing migrations" step) |
+| `legacy/rassa_back/db/archive/rassa_jala.sql` | **Archived** original hand-written schema (v3.1, 32 tables) + seeders; superseded by migrations                                     | File header: "Migración unificada: Esquema + Seeders"; placed under `db/archive/`                                                                        |
 
 **Treatment for this audit: models.py as read through the migration chain is authoritative.**
 The SQL archive documents the original intent and is used here to flag semantic drift
@@ -91,80 +91,93 @@ columns are soft-delete flags unless the entity has a char `estado` lifecycle.
 ### Business tables (34, via explicit `db_table`)
 
 #### `roles` — Rol (`models.py:26-40`)
-| Column | Type | Null | Default | Notes |
-|---|---|---|---|---|
-| id_rol | AutoField PK | — | — | |
-| nombre_rol | varchar(50) | no | — | unique |
-| descripcion | varchar(300) | no | — | |
-| creado_en | timestamptz | no | auto_now_add | |
-| estado | bool | no | true | soft delete |
+
+| Column      | Type         | Null | Default      | Notes       |
+| ----------- | ------------ | ---- | ------------ | ----------- |
+| id_rol      | AutoField PK | —    | —            |             |
+| nombre_rol  | varchar(50)  | no   | —            | unique      |
+| descripcion | varchar(300) | no   | —            |             |
+| creado_en   | timestamptz  | no   | auto_now_add |             |
+| estado      | bool         | no   | true         | soft delete |
 
 #### `categoria_producto` — CategoriaProducto (`models.py:43-57`)
+
 id_categoria PK; nombre varchar(50); descripcion varchar(300); creado_en; estado (soft delete).
 
 #### `unidad` — Unidad (`models.py:60-75`)
-| Column | Type | Null | Default |
-|---|---|---|---|
-| id_unidad | PK | — | — |
-| tipo | varchar(50) | **yes** | — (legacy column kept in sync with `nombre` by serializer, `catalogos_serializers.py:78-91`) |
-| nombre | varchar(100) | **yes** | — |
-| abreviatura | varchar(20) | **yes** | — |
-| creado_en | timestamptz | no | auto |
-| estado | bool | no | true |
+
+| Column      | Type         | Null    | Default                                                                                      |
+| ----------- | ------------ | ------- | -------------------------------------------------------------------------------------------- |
+| id_unidad   | PK           | —       | —                                                                                            |
+| tipo        | varchar(50)  | **yes** | — (legacy column kept in sync with `nombre` by serializer, `catalogos_serializers.py:78-91`) |
+| nombre      | varchar(100) | **yes** | —                                                                                            |
+| abreviatura | varchar(20)  | **yes** | —                                                                                            |
+| creado_en   | timestamptz  | no      | auto                                                                                         |
+| estado      | bool         | no      | true                                                                                         |
 
 #### `estado_pedido` — EstadoPedido (`models.py:78-91`)
+
 id_estado PK; tipo_estado varchar(50) unique; descripcion varchar(300); creado_en.
 Data rows seeded: pendiente, confirmado, en_preparacion, listo_para_retirar, entregado, cancelado, **activo** (legacy, unused — `seed_rassa_data.py:316-355`).
 
 #### `decision_merma` — DecisionMerma (`models.py:94-107`)
+
 id_decision PK; decision varchar(50); creado_en; estado (soft delete).
 Seed: Donar, Desechar, "Vender más barato", Compostar (`seed_rassa_data.py:358-367`).
 
 #### `municipio` — Municipio (`models.py:115-127`)
+
 id_municipio PK; nombre varchar(100); estado (soft delete, added by squash 0007). **No `creado_en`.**
 
 #### `localidad` — Localidad (`models.py:130-143`)
+
 id_localidad PK; nombre varchar(150); fk_municipio FK → municipio **CASCADE**; estado (soft delete). **No `creado_en`.**
 
 #### `persona` — Persona (`models.py:151-182`)
-| Column | Type | Null | Default | Notes |
-|---|---|---|---|---|
-| id_persona | PK | — | — | |
-| nombre | varchar(100) | no | — | |
-| apellido_paterno | varchar(100) | no | — | |
-| apellido_materno | varchar(100) | **yes** | — | |
-| fecha_nacimiento | date | no | — | |
-| sexo | varchar(1) | no | — | choices M/F/O (§6); SQL CHECK not migrated |
-| domicilio | varchar(300) | no | — | |
-| fk_localidad | FK → localidad | **yes** | — | **SET_NULL** |
-| creado_en | timestamptz | no | auto | |
-| estado | bool | no | true | |
+
+| Column           | Type           | Null    | Default | Notes                                      |
+| ---------------- | -------------- | ------- | ------- | ------------------------------------------ |
+| id_persona       | PK             | —       | —       |                                            |
+| nombre           | varchar(100)   | no      | —       |                                            |
+| apellido_paterno | varchar(100)   | no      | —       |                                            |
+| apellido_materno | varchar(100)   | **yes** | —       |                                            |
+| fecha_nacimiento | date           | no      | —       |                                            |
+| sexo             | varchar(1)     | no      | —       | choices M/F/O (§6); SQL CHECK not migrated |
+| domicilio        | varchar(300)   | no      | —       |                                            |
+| fk_localidad     | FK → localidad | **yes** | —       | **SET_NULL**                               |
+| creado_en        | timestamptz    | no      | auto    |                                            |
+| estado           | bool           | no      | true    |                                            |
 
 #### `usuario` — Usuario (`models.py:185-228`)
-| Column | Type | Null | Default | Notes |
-|---|---|---|---|---|
-| id_usuario | PK | — | — | |
-| fk_user | OneToOne → `auth_user` | **yes** | — | **SET_NULL**, related_name `usuario` |
-| fk_persona | OneToOne → persona | no | — | **CASCADE** |
-| telefono | varchar(15) | no | — | |
-| correo | varchar(150) | no | — | unique |
-| fk_rol | FK → roles | no | — | **PROTECT** |
-| creado_en | timestamptz | no | auto | |
-| estado | bool | no | true | deactivation flag (not checked at login — backend audit §10.1) |
+
+| Column     | Type                   | Null    | Default | Notes                                                          |
+| ---------- | ---------------------- | ------- | ------- | -------------------------------------------------------------- |
+| id_usuario | PK                     | —       | —       |                                                                |
+| fk_user    | OneToOne → `auth_user` | **yes** | —       | **SET_NULL**, related_name `usuario`                           |
+| fk_persona | OneToOne → persona     | no      | —       | **CASCADE**                                                    |
+| telefono   | varchar(15)            | no      | —       |                                                                |
+| correo     | varchar(150)           | no      | —       | unique                                                         |
+| fk_rol     | FK → roles             | no      | —       | **PROTECT**                                                    |
+| creado_en  | timestamptz            | no      | auto    |                                                                |
+| estado     | bool                   | no      | true    | deactivation flag (not checked at login — backend audit §10.1) |
 
 #### `familia` — Familia (`models.py:236-253`)
+
 id_familia PK; fk_jefe_familia FK → usuario **SET_NULL**, null; nombre_familia varchar(100);
 detalle_familia varchar(300) null; creado_en; estado (soft delete).
 
 #### `familia_usuario` — FamiliaUsuario (`models.py:256-270`)
+
 id_familia_usuario PK; fk_usuario FK → usuario **CASCADE**; fk_familia FK → familia
 **CASCADE**; estado (membership active flag); creado_en. No unique on fk_usuario (see §1.1.6).
 
 #### `limite_cliente` — LimiteCliente (`models.py:278-291`)
+
 id_limite PK; fk_usuario **OneToOne → usuario CASCADE**; monto decimal(10,2); creado_en.
 No DB CHECK on `monto ≥ 0` (SQL had one; app relies on absence of write endpoints).
 
 #### `producto` — Producto (`models.py:299-319`)
+
 id_producto PK; nombre_producto varchar(150); descripcion text (blank, default "");
 fk_categoria FK → categoria_producto **PROTECT**; fk_unidad FK → unidad **PROTECT**, null;
 precio decimal(10,2) default 0; stock positive int default 0; es_perecedero bool default
@@ -172,18 +185,20 @@ false; imagen text null (legacy denormalized principal-image URL, kept in sync b
 `legacy/rassa_back/rassa/productos_views.py:193-210,320-333`); estado (soft delete); creado_en.
 
 #### `publicacion_semanal` — PublicacionSemanal (`models.py:327-366`)
-| Column | Type | Null | Default | Notes |
-|---|---|---|---|---|
-| id_publicacion | PK | — | — | |
-| fk_agricultor | FK → usuario | **yes** | — | SET_NULL |
-| fecha_publicacion | date | no | — | next Monday on create |
-| semana | positive int | no | — | CheckConstraint 1–52 (`check_semana_range`) |
-| estado | varchar(20) | no | "borrador" | choices borrador/publicado/cerrado/cancelado (§6) |
-| creado_en | timestamptz | no | auto | |
+
+| Column            | Type         | Null    | Default    | Notes                                             |
+| ----------------- | ------------ | ------- | ---------- | ------------------------------------------------- |
+| id_publicacion    | PK           | —       | —          |                                                   |
+| fk_agricultor     | FK → usuario | **yes** | —          | SET_NULL                                          |
+| fecha_publicacion | date         | no      | —          | next Monday on create                             |
+| semana            | positive int | no      | —          | CheckConstraint 1–52 (`check_semana_range`)       |
+| estado            | varchar(20)  | no      | "borrador" | choices borrador/publicado/cerrado/cancelado (§6) |
+| creado_en         | timestamptz  | no      | auto       |                                                   |
 
 Constraints: `unique_agricultor_semana` (fk_agricultor, semana).
 
 #### `producto_semanal` — ProductoSemanal (`models.py:369-395`)
+
 id_producto_semanal PK; fk_publicacion FK → publicacion_semanal **CASCADE**; fk_producto
 FK → producto **PROTECT**; fk_unidad FK → unidad **PROTECT**; stock positive int;
 precio decimal(10,2); foto text null (URL string); estado varchar(20) default "activo"
@@ -191,152 +206,171 @@ precio decimal(10,2); foto text null (URL string); estado varchar(20) default "a
 (SQL had them; serializer-level only).
 
 #### `pedido_cabecera` — PedidoCabecera (`models.py:403-444`)
-| Column | Type | Null | Default | Notes |
-|---|---|---|---|---|
-| id_pedido | PK | — | — | |
-| fk_cliente | FK → usuario | **yes** | — | SET_NULL, related_name `pedidos_como_cliente` |
-| fk_estado | FK → estado_pedido | no | 1 | PROTECT |
-| subtotal | decimal(10,2) | no | — | |
-| iva | decimal(10,2) | no | — | 21 % of subtotal at creation |
-| fk_vendedor | FK → usuario | **yes** | — | SET_NULL, related_name `pedidos_como_vendedor` |
-| fecha_expiracion | timestamptz | **yes** | — | never written by the create flow |
-| total | decimal(10,2) | no | — | recomputed as subtotal+iva in `save()` (`models.py:442-444`) |
-| creado_en | timestamptz | no | auto | |
+
+| Column           | Type               | Null    | Default | Notes                                                        |
+| ---------------- | ------------------ | ------- | ------- | ------------------------------------------------------------ |
+| id_pedido        | PK                 | —       | —       |                                                              |
+| fk_cliente       | FK → usuario       | **yes** | —       | SET_NULL, related_name `pedidos_como_cliente`                |
+| fk_estado        | FK → estado_pedido | no      | 1       | PROTECT                                                      |
+| subtotal         | decimal(10,2)      | no      | —       |                                                              |
+| iva              | decimal(10,2)      | no      | —       | 21 % of subtotal at creation                                 |
+| fk_vendedor      | FK → usuario       | **yes** | —       | SET_NULL, related_name `pedidos_como_vendedor`               |
+| fecha_expiracion | timestamptz        | **yes** | —       | never written by the create flow                             |
+| total            | decimal(10,2)      | no      | —       | recomputed as subtotal+iva in `save()` (`models.py:442-444`) |
+| creado_en        | timestamptz        | no      | auto    |                                                              |
 
 #### `detalle_pedido` — DetallePedido (`models.py:447-469`)
+
 id_detalle PK; fk_pedido FK → pedido_cabecera **CASCADE**; fk_producto_semanal FK →
 producto_semanal **CASCADE**; nombre_producto varchar(150) (snapshot of name at purchase);
 precio_unitario decimal(10,2); cantidad positive int; importe decimal(10,2) (computed in
 `save()` only when None, `models.py:466-469`); creado_en.
 
 #### `tipo_pago` — TipoPago (`models.py:477-489`)
+
 id_tipo_pago PK; nombre varchar(30) unique; creado_en. Seed: Efectivo, Transferencia, Depósito.
 
 #### `pago` — Pago (`models.py:492-530`)
-| Column | Type | Null | Default | Notes |
-|---|---|---|---|---|
-| id_pago | PK | — | — | |
-| fk_pedido | FK → pedido_cabecera | **yes** | — | SET_NULL; NULL = liquidación payout |
-| fk_tipo | FK → tipo_pago | no | — | PROTECT |
-| monto | decimal(10,2) | no | — | |
-| referencia | varchar(100) | **yes** | — | |
-| folio | varchar(50) | no | "" | **unique**; generated `REC-YYYYMMDD-###` in `save()` under `pg_advisory_xact_lock` (`models.py:515-530`) |
-| creado_en | timestamptz | no | auto | |
+
+| Column     | Type                 | Null    | Default | Notes                                                                                                    |
+| ---------- | -------------------- | ------- | ------- | -------------------------------------------------------------------------------------------------------- |
+| id_pago    | PK                   | —       | —       |                                                                                                          |
+| fk_pedido  | FK → pedido_cabecera | **yes** | —       | SET_NULL; NULL = liquidación payout                                                                      |
+| fk_tipo    | FK → tipo_pago       | no      | —       | PROTECT                                                                                                  |
+| monto      | decimal(10,2)        | no      | —       |                                                                                                          |
+| referencia | varchar(100)         | **yes** | —       |                                                                                                          |
+| folio      | varchar(50)          | no      | ""      | **unique**; generated `REC-YYYYMMDD-###` in `save()` under `pg_advisory_xact_lock` (`models.py:515-530`) |
+| creado_en  | timestamptz          | no      | auto    |                                                                                                          |
 
 Constraint: `unique_pago_per_pedido` on `fk_pedido` with **nulls_distinct=True**
 (multiple NULL fk_pedido rows allowed — requires PostgreSQL ≥ 15, `legacy/rassa_back/rassa/checks.py:5-33`).
 
 #### `merma` — Merma (`models.py:538-563`)
+
 id_merma PK; fk_producto_semanal FK → producto_semanal **SET_NULL**, null; cantidad
 positive int; motivo varchar(300); comentarios text null; fk_decision FK → decision_merma
 **PROTECT**; fk_pedido FK → pedido_cabecera **PROTECT**, related_name `mermas` (added by
 migration 0027); creado_en; estado (soft delete).
 
 #### `corte` — Corte (`models.py:571-620`)
-| Column | Type | Null | Default | Notes |
-|---|---|---|---|---|
-| id_corte | PK | — | — | |
-| fk_vendedor | FK → usuario | **yes** | — | SET_NULL, related_name `cortes` |
-| fecha | date | no | `timezone.localdate` | **db_index=True** |
-| monto_real | decimal(10,2) | no | — | |
-| monto_teorico | decimal(10,2) | no | — | snapshot at creation |
-| diferencia | decimal(10,2) | no | — | snapshot `monto_real − monto_teorico` at creation (`models.py:615-620`) |
-| estado | varchar(20) | no | "abierto" | choices abierto/cerrado/cuadrado |
-| creado_en | timestamptz | no | auto | |
+
+| Column        | Type          | Null    | Default              | Notes                                                                   |
+| ------------- | ------------- | ------- | -------------------- | ----------------------------------------------------------------------- |
+| id_corte      | PK            | —       | —                    |                                                                         |
+| fk_vendedor   | FK → usuario  | **yes** | —                    | SET_NULL, related_name `cortes`                                         |
+| fecha         | date          | no      | `timezone.localdate` | **db_index=True**                                                       |
+| monto_real    | decimal(10,2) | no      | —                    |                                                                         |
+| monto_teorico | decimal(10,2) | no      | —                    | snapshot at creation                                                    |
+| diferencia    | decimal(10,2) | no      | —                    | snapshot `monto_real − monto_teorico` at creation (`models.py:615-620`) |
+| estado        | varchar(20)   | no      | "abierto"            | choices abierto/cerrado/cuadrado                                        |
+| creado_en     | timestamptz   | no      | auto                 |                                                                         |
 
 Constraint: `unique_corte_vendedor_fecha` **partial** (`fk_vendedor IS NOT NULL`) — orphan
 cortes (deleted vendedor) may share a date (`models.py:600-610`).
 
 #### `logs` — Log (`models.py:628-644`; the `logs` app's own `models.py` is empty)
+
 id_log PK; fk_usuario FK → usuario **SET_NULL**, null; descripcion text; ip
 GenericIPAddressField; dispositivo varchar(200); creado_en; estado.
 
 #### `conversacion` — Conversacion (`models.py:652-676`)
+
 id_conversacion PK; nombre varchar(100) null; tipo bool default false (**false = privada,
 true = grupal**); fk_familia FK → familia **SET_NULL**, null; nombre_override bool default
 false; creado_en; estado (soft delete).
 Constraint: `unique_active_family_conversation` **partial** (`estado = true AND fk_familia IS NOT NULL`).
 
 #### `integrantes` — Integrante (`models.py:679-702`)
+
 id_miembro PK; fk_usuario FK → usuario **CASCADE**; fk_conversacion FK → conversacion
 **CASCADE**; creado_en; estado (membership active flag); rol varchar(10) default "miembro"
 (choices miembro/admin).
 Constraint: `unique_integrante_usuario_conversacion` (fk_usuario, fk_conversacion).
 
 #### `mensaje` — Mensaje (`models.py:705-722`)
+
 id_mensaje PK; fk_emisor FK → usuario **SET_NULL**, null; fk_conversacion FK → conversacion
 **CASCADE**; contenido text null; leido bool default false; editado bool default false;
 creado_en; estado (soft delete — "inactivar" flow).
 
 #### `documento` — Documento (`models.py:725-747`)
+
 id_documento PK; fk_usuario FK → usuario **SET_NULL**, null; nombre_documento varchar(100);
 url_documento text (relative path under `media/documentos/`); tipo_documento varchar(50)
 choices imagen/audio/video; creado_en; estado.
 
 #### `mensajes_documentos` — MensajeDocumento (`models.py:750-770`)
+
 id_mensaje_documento PK; fk_mensaje FK → mensaje **CASCADE**; fk_documento FK → documento
 **CASCADE**; creado_en; estado.
 Constraint: `unique_mensaje_documento` (fk_mensaje, fk_documento).
 
 #### `producto_imagen` — ProductoImagen (`models.py:778-803`)
+
 id_imagen PK; fk_producto FK → producto **CASCADE**; url URLField(500); drive_file_id
 varchar(255) null; es_principal bool default false; orden positive int default 0; creado_en;
 eliminar_pendiente bool default false (Drive cleanup marker, migration 0008).
 Constraint: `unique_es_principal_per_producto` **partial** (`es_principal = true`).
 
 #### `recoleccion` — Recoleccion (`models.py:806-843`)
-| Column | Type | Null | Default | Notes |
-|---|---|---|---|---|
-| id_recoleccion | PK | — | — | |
-| fk_agricultor | FK → usuario | **no** | — | **PROTECT** (NOT NULL since migration 0015) |
-| fecha_recoleccion | date | no | — | |
-| hora_inicio | time | **yes** | — | |
-| hora_fin | time | **yes** | — | |
-| estado | varchar(20) | no | "pendiente" | choices pendiente/en_ruta/recolectado/cancelado |
-| comentarios | text | **yes** | — | |
-| creado_en | timestamptz | no | auto | |
+
+| Column            | Type         | Null    | Default     | Notes                                           |
+| ----------------- | ------------ | ------- | ----------- | ----------------------------------------------- |
+| id_recoleccion    | PK           | —       | —           |                                                 |
+| fk_agricultor     | FK → usuario | **no**  | —           | **PROTECT** (NOT NULL since migration 0015)     |
+| fecha_recoleccion | date         | no      | —           |                                                 |
+| hora_inicio       | time         | **yes** | —           |                                                 |
+| hora_fin          | time         | **yes** | —           |                                                 |
+| estado            | varchar(20)  | no      | "pendiente" | choices pendiente/en_ruta/recolectado/cancelado |
+| comentarios       | text         | **yes** | —           |                                                 |
+| creado_en         | timestamptz  | no      | auto        |                                                 |
 
 Constraint: `uniq_recoleccion_activa_agricultor_fecha` **partial**
 (`NOT (estado = 'cancelado')`) on (fk_agricultor, fecha_recoleccion) — slot stays occupied
 even after completion (`models.py:828-840`).
 
 #### `historial_estado_recoleccion` — HistorialEstadoRecoleccion (`models.py:846-865`)
+
 id_historial PK; fk_recoleccion FK → recoleccion **CASCADE**, related_name
 `historial_estados`; estado_anterior varchar(20) null; estado_nuevo varchar(20);
 fk_cambiado_por FK → usuario **SET_NULL**, null; creado_en. **Table created by migration
 0016 — absent from the SQL archive.**
 
 #### `historial_estado_pedido` — HistorialEstadoPedido (`models.py:868-899`)
+
 id_historial PK; fk_pedido FK → pedido_cabecera **SET_NULL**, null; fk_estado_anterior FK →
 estado_pedido **SET_NULL**, null (related_name `historial_anterior`); fk_estado_nuevo FK →
 estado_pedido **PROTECT** (related_name `historial_nuevo`); fk_cambiado_por FK → usuario
 **SET_NULL**, null; creado_en.
 
 #### `recibo` — Recibo (`models.py:902-919`)
+
 id_recibo PK; fk_pago FK → pago **SET_NULL**, null; fk_pedido FK → pedido_cabecera
 **SET_NULL**, null; folio varchar(50) **unique**; monto decimal(10,2); creado_en.
 **No API writes Recibos** (only the seed command — backend audit §11.5).
 
 #### `liquidacion` — Liquidacion (`models.py:922-969`)
-| Column | Type | Null | Default | Notes |
-|---|---|---|---|---|
-| id_liquidacion | PK | — | — | |
-| fk_agricultor | FK → usuario | **yes** | — | SET_NULL |
-| periodo_inicio | date | no | — | Monday |
-| periodo_fin | date | no | — | Sunday |
-| monto_ventas | decimal(10,2) | no | — | |
-| comision | decimal(10,2) | no | — | |
-| tasa_comision | decimal(5,4) | no | 0.10 (`COMISION_RASSA`) | added 0022/0025 |
-| monto_liquidar | decimal(10,2) | no | — | written by service (SQL had generated column) |
-| fk_pago_liquidacion | FK → pago | **yes** | — | SET_NULL |
-| estado | varchar(20) | no | "pendiente" | choices pendiente/pagada/parcial ("parcial" produced by no route — `liquidaciones/constants.py:11-16`) |
-| creado_en | timestamptz | no | auto | |
+
+| Column              | Type          | Null    | Default                 | Notes                                                                                                  |
+| ------------------- | ------------- | ------- | ----------------------- | ------------------------------------------------------------------------------------------------------ |
+| id_liquidacion      | PK            | —       | —                       |                                                                                                        |
+| fk_agricultor       | FK → usuario  | **yes** | —                       | SET_NULL                                                                                               |
+| periodo_inicio      | date          | no      | —                       | Monday                                                                                                 |
+| periodo_fin         | date          | no      | —                       | Sunday                                                                                                 |
+| monto_ventas        | decimal(10,2) | no      | —                       |                                                                                                        |
+| comision            | decimal(10,2) | no      | —                       |                                                                                                        |
+| tasa_comision       | decimal(5,4)  | no      | 0.10 (`COMISION_RASSA`) | added 0022/0025                                                                                        |
+| monto_liquidar      | decimal(10,2) | no      | —                       | written by service (SQL had generated column)                                                          |
+| fk_pago_liquidacion | FK → pago     | **yes** | —                       | SET_NULL                                                                                               |
+| estado              | varchar(20)   | no      | "pendiente"             | choices pendiente/pagada/parcial ("parcial" produced by no route — `liquidaciones/constants.py:11-16`) |
+| creado_en           | timestamptz   | no      | auto                    |                                                                                                        |
 
 Constraint: `unique_liquidacion_agricultor_periodo` (fk_agricultor, periodo_inicio,
 periodo_fin) — any-state anti-duplicate (migration 0022 replaced a partial
 "activo-only" constraint from 0021).
 
 #### `liquidacion_venta` — LiquidacionVenta (`models.py:972-1013`)
+
 id_liquidacion_venta PK; fk_liquidacion FK → liquidacion **CASCADE**, related_name
 `ventas`; fk_pedido FK → pedido_cabecera **PROTECT**, related_name `liquidaciones`;
 monto_aportado decimal(10,2) (snapshot of the agricultor's lines in that pedido); creado_en.
@@ -361,94 +395,98 @@ repo — details are intentionally not enumerated here.
 **Status: Confirmed** (all from `models.py`; on_delete behavior after migration 0006).
 
 ### Primary keys
+
 All 34 tables use an explicit integer `AutoField` PK with a domain name
 (`id_rol`, `id_usuario`, …). `DEFAULT_AUTO_FIELD = BigAutoField`
 (`legacy/rassa_back/rassa/settings.py:240`) applies only to implicit PKs (Django-managed tables).
 
 ### Foreign keys with on_delete
 
-| Table | FK | Target | on_delete | Null |
-|---|---|---|---|---|
-| localidad | fk_municipio | municipio | CASCADE | no |
-| persona | fk_localidad | localidad | SET_NULL | yes |
-| usuario | fk_user | auth_user | SET_NULL | yes |
-| usuario | fk_persona | persona | CASCADE | no |
-| usuario | fk_rol | roles | PROTECT | no |
-| familia | fk_jefe_familia | usuario | SET_NULL | yes |
-| familia_usuario | fk_usuario | usuario | CASCADE | no |
-| familia_usuario | fk_familia | familia | CASCADE | no |
-| limite_cliente | fk_usuario | usuario | CASCADE (OneToOne) | no |
-| producto | fk_categoria | categoria_producto | PROTECT | no |
-| producto | fk_unidad | unidad | PROTECT | yes |
-| publicacion_semanal | fk_agricultor | usuario | SET_NULL | yes |
-| producto_semanal | fk_publicacion | publicacion_semanal | CASCADE | no |
-| producto_semanal | fk_producto | producto | PROTECT | no |
-| producto_semanal | fk_unidad | unidad | PROTECT | no |
-| pedido_cabecera | fk_cliente | usuario | SET_NULL | yes |
-| pedido_cabecera | fk_estado | estado_pedido | PROTECT | no |
-| pedido_cabecera | fk_vendedor | usuario | SET_NULL | yes |
-| detalle_pedido | fk_pedido | pedido_cabecera | CASCADE | no |
-| detalle_pedido | fk_producto_semanal | producto_semanal | CASCADE | no |
-| pago | fk_pedido | pedido_cabecera | SET_NULL | yes |
-| pago | fk_tipo | tipo_pago | PROTECT | no |
-| merma | fk_producto_semanal | producto_semanal | SET_NULL | yes |
-| merma | fk_decision | decision_merma | PROTECT | no |
-| merma | fk_pedido | pedido_cabecera | PROTECT | no |
-| corte | fk_vendedor | usuario | SET_NULL | yes |
-| logs | fk_usuario | usuario | SET_NULL | yes |
-| conversacion | fk_familia | familia | SET_NULL | yes |
-| integrantes | fk_usuario | usuario | CASCADE | no |
-| integrantes | fk_conversacion | conversacion | CASCADE | no |
-| mensaje | fk_emisor | usuario | SET_NULL | yes |
-| mensaje | fk_conversacion | conversacion | CASCADE | no |
-| documento | fk_usuario | usuario | SET_NULL | yes |
-| mensajes_documentos | fk_mensaje | mensaje | CASCADE | no |
-| mensajes_documentos | fk_documento | documento | CASCADE | no |
-| producto_imagen | fk_producto | producto | CASCADE | no |
-| recoleccion | fk_agricultor | usuario | PROTECT | no |
-| historial_estado_recoleccion | fk_recoleccion | recoleccion | CASCADE | no |
-| historial_estado_recoleccion | fk_cambiado_por | usuario | SET_NULL | yes |
-| historial_estado_pedido | fk_pedido | pedido_cabecera | SET_NULL | yes |
-| historial_estado_pedido | fk_estado_anterior | estado_pedido | SET_NULL | yes |
-| historial_estado_pedido | fk_estado_nuevo | estado_pedido | PROTECT | no |
-| historial_estado_pedido | fk_cambiado_por | usuario | SET_NULL | yes |
-| recibo | fk_pago | pago | SET_NULL | yes |
-| recibo | fk_pedido | pedido_cabecera | SET_NULL | yes |
-| liquidacion | fk_agricultor | usuario | SET_NULL | yes |
-| liquidacion | fk_pago_liquidacion | pago | SET_NULL | yes |
-| liquidacion_venta | fk_liquidacion | liquidacion | CASCADE | no |
-| liquidacion_venta | fk_pedido | pedido_cabecera | PROTECT | no |
+| Table                        | FK                  | Target              | on_delete          | Null |
+| ---------------------------- | ------------------- | ------------------- | ------------------ | ---- |
+| localidad                    | fk_municipio        | municipio           | CASCADE            | no   |
+| persona                      | fk_localidad        | localidad           | SET_NULL           | yes  |
+| usuario                      | fk_user             | auth_user           | SET_NULL           | yes  |
+| usuario                      | fk_persona          | persona             | CASCADE            | no   |
+| usuario                      | fk_rol              | roles               | PROTECT            | no   |
+| familia                      | fk_jefe_familia     | usuario             | SET_NULL           | yes  |
+| familia_usuario              | fk_usuario          | usuario             | CASCADE            | no   |
+| familia_usuario              | fk_familia          | familia             | CASCADE            | no   |
+| limite_cliente               | fk_usuario          | usuario             | CASCADE (OneToOne) | no   |
+| producto                     | fk_categoria        | categoria_producto  | PROTECT            | no   |
+| producto                     | fk_unidad           | unidad              | PROTECT            | yes  |
+| publicacion_semanal          | fk_agricultor       | usuario             | SET_NULL           | yes  |
+| producto_semanal             | fk_publicacion      | publicacion_semanal | CASCADE            | no   |
+| producto_semanal             | fk_producto         | producto            | PROTECT            | no   |
+| producto_semanal             | fk_unidad           | unidad              | PROTECT            | no   |
+| pedido_cabecera              | fk_cliente          | usuario             | SET_NULL           | yes  |
+| pedido_cabecera              | fk_estado           | estado_pedido       | PROTECT            | no   |
+| pedido_cabecera              | fk_vendedor         | usuario             | SET_NULL           | yes  |
+| detalle_pedido               | fk_pedido           | pedido_cabecera     | CASCADE            | no   |
+| detalle_pedido               | fk_producto_semanal | producto_semanal    | CASCADE            | no   |
+| pago                         | fk_pedido           | pedido_cabecera     | SET_NULL           | yes  |
+| pago                         | fk_tipo             | tipo_pago           | PROTECT            | no   |
+| merma                        | fk_producto_semanal | producto_semanal    | SET_NULL           | yes  |
+| merma                        | fk_decision         | decision_merma      | PROTECT            | no   |
+| merma                        | fk_pedido           | pedido_cabecera     | PROTECT            | no   |
+| corte                        | fk_vendedor         | usuario             | SET_NULL           | yes  |
+| logs                         | fk_usuario          | usuario             | SET_NULL           | yes  |
+| conversacion                 | fk_familia          | familia             | SET_NULL           | yes  |
+| integrantes                  | fk_usuario          | usuario             | CASCADE            | no   |
+| integrantes                  | fk_conversacion     | conversacion        | CASCADE            | no   |
+| mensaje                      | fk_emisor           | usuario             | SET_NULL           | yes  |
+| mensaje                      | fk_conversacion     | conversacion        | CASCADE            | no   |
+| documento                    | fk_usuario          | usuario             | SET_NULL           | yes  |
+| mensajes_documentos          | fk_mensaje          | mensaje             | CASCADE            | no   |
+| mensajes_documentos          | fk_documento        | documento           | CASCADE            | no   |
+| producto_imagen              | fk_producto         | producto            | CASCADE            | no   |
+| recoleccion                  | fk_agricultor       | usuario             | PROTECT            | no   |
+| historial_estado_recoleccion | fk_recoleccion      | recoleccion         | CASCADE            | no   |
+| historial_estado_recoleccion | fk_cambiado_por     | usuario             | SET_NULL           | yes  |
+| historial_estado_pedido      | fk_pedido           | pedido_cabecera     | SET_NULL           | yes  |
+| historial_estado_pedido      | fk_estado_anterior  | estado_pedido       | SET_NULL           | yes  |
+| historial_estado_pedido      | fk_estado_nuevo     | estado_pedido       | PROTECT            | no   |
+| historial_estado_pedido      | fk_cambiado_por     | usuario             | SET_NULL           | yes  |
+| recibo                       | fk_pago             | pago                | SET_NULL           | yes  |
+| recibo                       | fk_pedido           | pedido_cabecera     | SET_NULL           | yes  |
+| liquidacion                  | fk_agricultor       | usuario             | SET_NULL           | yes  |
+| liquidacion                  | fk_pago_liquidacion | pago                | SET_NULL           | yes  |
+| liquidacion_venta            | fk_liquidacion      | liquidacion         | CASCADE            | no   |
+| liquidacion_venta            | fk_pedido           | pedido_cabecera     | PROTECT            | no   |
 
 Documented policy (`models.py:5-13`): CASCADE for owned children, SET_NULL to preserve
 audit/history rows, PROTECT for shared catalogs and financially-relevant rows.
 
 ### OneToOne
+
 `usuario.fk_user` → auth_user (SET_NULL, nullable); `usuario.fk_persona` → persona
 (CASCADE); `limite_cliente.fk_usuario` → usuario (CASCADE).
 
 ### Many-to-many
+
 **No true M2M fields.** All many-side relations are explicit through-tables implemented as
 models: `familia_usuario` (usuario↔familia), `integrantes` (usuario↔conversacion),
 `mensajes_documentos` (mensaje↔documento).
 
 ### Constraints summary
 
-| Constraint | Table | Kind |
-|---|---|---|
-| unique | roles.nombre_rol; estado_pedido.tipo_estado; tipo_pago.nombre; usuario.correo; pago.folio; recibo.folio | column unique |
-| `check_semana_range` | publicacion_semanal.semana ∈ [1,52] | CheckConstraint (the **only** DB check constraint in the ORM) |
-| `unique_agricultor_semana` | publicacion_semanal (fk_agricultor, semana) | UniqueConstraint |
-| `unique_pago_per_pedido` | pago.fk_pedido, **nulls_distinct=True** | UniqueConstraint (PG ≥ 15) |
-| `unique_corte_vendedor_fecha` | corte (fk_vendedor, fecha) **where fk_vendedor IS NOT NULL** | partial UniqueConstraint |
-| `unique_active_family_conversation` | conversacion.fk_familia **where estado AND fk_familia IS NOT NULL** | partial UniqueConstraint |
-| `unique_integrante_usuario_conversacion` | integrantes (fk_usuario, fk_conversacion) | UniqueConstraint |
-| `unique_mensaje_documento` | mensajes_documentos (fk_mensaje, fk_documento) | UniqueConstraint |
-| `unique_es_principal_per_producto` | producto_imagen.fk_producto **where es_principal** | partial UniqueConstraint |
-| `uniq_recoleccion_activa_agricultor_fecha` | recoleccion (fk_agricultor, fecha_recoleccion) **where estado ≠ cancelado** | partial UniqueConstraint |
-| `unique_liquidacion_agricultor_periodo` | liquidacion (fk_agricultor, periodo_inicio, periodo_fin) | UniqueConstraint |
-| `unique_liquidacion_venta_pedido` | liquidacion_venta (fk_liquidacion, fk_pedido) | UniqueConstraint |
+| Constraint                                 | Table                                                                                                   | Kind                                                          |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| unique                                     | roles.nombre_rol; estado_pedido.tipo_estado; tipo_pago.nombre; usuario.correo; pago.folio; recibo.folio | column unique                                                 |
+| `check_semana_range`                       | publicacion_semanal.semana ∈ [1,52]                                                                     | CheckConstraint (the **only** DB check constraint in the ORM) |
+| `unique_agricultor_semana`                 | publicacion_semanal (fk_agricultor, semana)                                                             | UniqueConstraint                                              |
+| `unique_pago_per_pedido`                   | pago.fk_pedido, **nulls_distinct=True**                                                                 | UniqueConstraint (PG ≥ 15)                                    |
+| `unique_corte_vendedor_fecha`              | corte (fk_vendedor, fecha) **where fk_vendedor IS NOT NULL**                                            | partial UniqueConstraint                                      |
+| `unique_active_family_conversation`        | conversacion.fk_familia **where estado AND fk_familia IS NOT NULL**                                     | partial UniqueConstraint                                      |
+| `unique_integrante_usuario_conversacion`   | integrantes (fk_usuario, fk_conversacion)                                                               | UniqueConstraint                                              |
+| `unique_mensaje_documento`                 | mensajes_documentos (fk_mensaje, fk_documento)                                                          | UniqueConstraint                                              |
+| `unique_es_principal_per_producto`         | producto_imagen.fk_producto **where es_principal**                                                      | partial UniqueConstraint                                      |
+| `uniq_recoleccion_activa_agricultor_fecha` | recoleccion (fk_agricultor, fecha_recoleccion) **where estado ≠ cancelado**                             | partial UniqueConstraint                                      |
+| `unique_liquidacion_agricultor_periodo`    | liquidacion (fk_agricultor, periodo_inicio, periodo_fin)                                                | UniqueConstraint                                              |
+| `unique_liquidacion_venta_pedido`          | liquidacion_venta (fk_liquidacion, fk_pedido)                                                           | UniqueConstraint                                              |
 
 ### Indexes
+
 `corte.fecha` has an explicit `db_index=True` (`models.py:582`). All FK and unique columns
 get implicit indexes. The SQL archive's hand-written `idx_*` indexes were **not** migrated
 (§1.1.4) — an offline-first reimplementation wanting those access paths must create them itself.
@@ -521,39 +559,39 @@ parent to many (NOT NULL FK). `AUTH_USER` is Django's `auth_user` (library-manag
 Chronological list; **D** marks data migrations (RunPython). Four parallel branches existed
 and are stitched by merge migrations.
 
-| Migration | What it does |
-|---|---|
-| `0001_initial` | Creates the initial 32 business tables (models as of 2026-07-02) |
-| `0002_remove_usuario_contrasenia` | Drops `usuario.contrasenia` (auth delegated to `auth_user`) |
-| `0003_log_fk_usuario_set_null` | `logs.fk_usuario` → SET_NULL, nullable |
-| `0004_usuario_add_fk_user` | Adds `usuario.fk_user` OneToOne → auth_user (initially CASCADE) |
-| `0005_usuario_fk_user_set_null` | `fk_user` → SET_NULL |
-| `0006_cascade_to_set_null_protect` | Broad on_delete policy rewrite across ~20 FKs (SET_NULL for audit-bearing FKs, PROTECT for catalogs/finance) |
-| `0007_squash_all_branches` (D) | Squash replacing 21 branch migrations (0007–0017 of an earlier numbering). Schema: `producto.descripcion/fk_unidad/precio/stock/imagen`, `unidad.nombre/abreviatura` (+`tipo` nullable), `municipio.estado`, `localidad.estado`, `producto_semanal.fk_producto` alter, `familia_usuario.fk_usuario` alter, `mensaje.editado`, `producto_imagen.orden/url(URLField)/drive_file_id`, constraint `unique_es_principal_per_producto`. Data: backfills unidad nombre/abreviatura |
-| `0008_productoimagen_eliminar_pendiente` | Adds `producto_imagen.eliminar_pendiente` |
-| `0009_add_folio_to_pago` | Adds `pago.folio` (nullable, unique) |
-| `0010_pago_unique_pedido_constraint` | Adds `unique_pago_per_pedido` (default nulls-distinct semantics) |
-| `0011_pago_unique_pedido_nulls_distinct` | Recreates constraint with `nulls_distinct=False` (NULL counts as duplicate) |
-| `0012_pago_folio_default` (D) | Backfills `folio=''` for NULLs; field becomes default `''` |
-| `0013_conversacion_fk_familia` | Adds `conversacion.fk_familia` (SET_NULL, nullable) |
-| `0014_populate_conversacion_fk_familia` (D) | Links conversations to familias by exact name match |
-| `0015_alter_recoleccion_fk_agricultor_and_more` (D) | Deletes orphan recolecciones (fk_agricultor NULL), cancels duplicate (agricultor, fecha) rows with survival rules, then `fk_agricultor` → PROTECT NOT NULL; adds partial constraint `uniq_recoleccion_activa_agricultor_fecha` |
-| `0015_chat_familia_fields` (D) | Dedups active family conversations; adds `integrantes.rol` (choices miembro/admin), `conversacion.nombre_override`; partial constraint `unique_active_family_conversation` |
-| `0015_corte_add_fk_vendedor_fecha` | Adds `corte.fk_vendedor` (SET_NULL) and `corte.fecha` (default localdate); full unique (fk_vendedor, fecha) |
-| `0016_alter_corte_options` | Model ordering `-fecha` (no schema change) |
-| `0016_historialestadorecoleccion` | Creates `historial_estado_recoleccion` |
-| `0017_merge_chat_recoleccion` | Merge (no ops) |
-| `0018_merge_20260803_1739` | Merge (no ops) |
-| `0018_pago_unique_pedido_allow_null_distinct` | `unique_pago_per_pedido` → `nulls_distinct=True` (multiple NULL fk_pedido = liquidación payouts). Header documents PG ≥ 15 requirement and rollback procedure |
-| `0019_remove_corte_unique_corte_vendedor_fecha_and_more` | Recreates `unique_corte_vendedor_fecha` as **partial** (fk_vendedor IS NOT NULL); help_text alters on corte decimals |
-| `0020_alter_corte_fecha` | `corte.fecha` gains `db_index=True` |
-| `0020_liquidacion_venta` | Creates `liquidacion_venta` + constraint `unique_liquidacion_venta_pedido` |
-| `0021_liquidacion_unique_liquidacion_agricultor_periodo_activo` | Partial unique (agricultor, periodo) **where estado in (pendiente, parcial)** |
-| `0022_remove_liquidacion_unique_..._and_more` | Replaces it with the full unique `unique_liquidacion_agricultor_periodo`; adds `liquidacion.tasa_comision` (default 0.1) |
-| `0023_merge_20260803_1208`, `0024_merge_20260803_1308` | Merges (no ops) |
-| `0025_alter_liquidacion_tasa_comision` | `tasa_comision` default fixed to `Decimal('0.10')` |
-| `0026_merge_20260804_1000` | Merge (no ops) |
-| `0027_add_fk_pedido_to_merma` | Adds `merma.fk_pedido` (PROTECT, related_name `mermas`) |
+| Migration                                                       | What it does                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0001_initial`                                                  | Creates the initial 32 business tables (models as of 2026-07-02)                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `0002_remove_usuario_contrasenia`                               | Drops `usuario.contrasenia` (auth delegated to `auth_user`)                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `0003_log_fk_usuario_set_null`                                  | `logs.fk_usuario` → SET_NULL, nullable                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `0004_usuario_add_fk_user`                                      | Adds `usuario.fk_user` OneToOne → auth_user (initially CASCADE)                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `0005_usuario_fk_user_set_null`                                 | `fk_user` → SET_NULL                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `0006_cascade_to_set_null_protect`                              | Broad on_delete policy rewrite across ~20 FKs (SET_NULL for audit-bearing FKs, PROTECT for catalogs/finance)                                                                                                                                                                                                                                                                                                                                                                |
+| `0007_squash_all_branches` (D)                                  | Squash replacing 21 branch migrations (0007–0017 of an earlier numbering). Schema: `producto.descripcion/fk_unidad/precio/stock/imagen`, `unidad.nombre/abreviatura` (+`tipo` nullable), `municipio.estado`, `localidad.estado`, `producto_semanal.fk_producto` alter, `familia_usuario.fk_usuario` alter, `mensaje.editado`, `producto_imagen.orden/url(URLField)/drive_file_id`, constraint `unique_es_principal_per_producto`. Data: backfills unidad nombre/abreviatura |
+| `0008_productoimagen_eliminar_pendiente`                        | Adds `producto_imagen.eliminar_pendiente`                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `0009_add_folio_to_pago`                                        | Adds `pago.folio` (nullable, unique)                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `0010_pago_unique_pedido_constraint`                            | Adds `unique_pago_per_pedido` (default nulls-distinct semantics)                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `0011_pago_unique_pedido_nulls_distinct`                        | Recreates constraint with `nulls_distinct=False` (NULL counts as duplicate)                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `0012_pago_folio_default` (D)                                   | Backfills `folio=''` for NULLs; field becomes default `''`                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `0013_conversacion_fk_familia`                                  | Adds `conversacion.fk_familia` (SET_NULL, nullable)                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `0014_populate_conversacion_fk_familia` (D)                     | Links conversations to familias by exact name match                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `0015_alter_recoleccion_fk_agricultor_and_more` (D)             | Deletes orphan recolecciones (fk_agricultor NULL), cancels duplicate (agricultor, fecha) rows with survival rules, then `fk_agricultor` → PROTECT NOT NULL; adds partial constraint `uniq_recoleccion_activa_agricultor_fecha`                                                                                                                                                                                                                                              |
+| `0015_chat_familia_fields` (D)                                  | Dedups active family conversations; adds `integrantes.rol` (choices miembro/admin), `conversacion.nombre_override`; partial constraint `unique_active_family_conversation`                                                                                                                                                                                                                                                                                                  |
+| `0015_corte_add_fk_vendedor_fecha`                              | Adds `corte.fk_vendedor` (SET_NULL) and `corte.fecha` (default localdate); full unique (fk_vendedor, fecha)                                                                                                                                                                                                                                                                                                                                                                 |
+| `0016_alter_corte_options`                                      | Model ordering `-fecha` (no schema change)                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `0016_historialestadorecoleccion`                               | Creates `historial_estado_recoleccion`                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `0017_merge_chat_recoleccion`                                   | Merge (no ops)                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `0018_merge_20260803_1739`                                      | Merge (no ops)                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `0018_pago_unique_pedido_allow_null_distinct`                   | `unique_pago_per_pedido` → `nulls_distinct=True` (multiple NULL fk_pedido = liquidación payouts). Header documents PG ≥ 15 requirement and rollback procedure                                                                                                                                                                                                                                                                                                               |
+| `0019_remove_corte_unique_corte_vendedor_fecha_and_more`        | Recreates `unique_corte_vendedor_fecha` as **partial** (fk_vendedor IS NOT NULL); help_text alters on corte decimals                                                                                                                                                                                                                                                                                                                                                        |
+| `0020_alter_corte_fecha`                                        | `corte.fecha` gains `db_index=True`                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `0020_liquidacion_venta`                                        | Creates `liquidacion_venta` + constraint `unique_liquidacion_venta_pedido`                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `0021_liquidacion_unique_liquidacion_agricultor_periodo_activo` | Partial unique (agricultor, periodo) **where estado in (pendiente, parcial)**                                                                                                                                                                                                                                                                                                                                                                                               |
+| `0022_remove_liquidacion_unique_..._and_more`                   | Replaces it with the full unique `unique_liquidacion_agricultor_periodo`; adds `liquidacion.tasa_comision` (default 0.1)                                                                                                                                                                                                                                                                                                                                                    |
+| `0023_merge_20260803_1208`, `0024_merge_20260803_1308`          | Merges (no ops)                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `0025_alter_liquidacion_tasa_comision`                          | `tasa_comision` default fixed to `Decimal('0.10')`                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `0026_merge_20260804_1000`                                      | Merge (no ops)                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `0027_add_fk_pedido_to_merma`                                   | Adds `merma.fk_pedido` (PROTECT, related_name `mermas`)                                                                                                                                                                                                                                                                                                                                                                                                                     |
 
 Operational note: `legacy/rassa_back/docs/RUNBOOK_MIGRACIONES.md` documents that existing
 databases must `migrate rassa 0007_squash_all_branches --fake` after the squash, then
@@ -575,27 +613,27 @@ consistency via CI `makemigrations --check` and `rassa/tests/test_migrations.py`
 
 ### Model `choices` (Django-level, no DB CHECK except where noted)
 
-| Field | Values |
-|---|---|
-| `persona.sexo` (`models.py:154-158`) | M (Masculino), F (Femenino), O (Otro) |
-| `publicacion_semanal.estado` (`models.py:330-348`) | borrador, publicado, cerrado, cancelado |
-| `producto_semanal.estado` (`models.py:372-387`) | activo, inactivo |
-| `corte.estado` (`models.py:574-578`) | abierto, cerrado, cuadrado |
-| `recoleccion.estado` (`models.py:809-821`) | pendiente, en_ruta, recolectado, cancelado |
-| `liquidacion.estado` (`models.py:932-936`) | pendiente, pagada, parcial |
-| `documento.tipo_documento` (`models.py:728-732`) | imagen, audio, video |
-| `integrantes.rol` (`models.py:682,689`) | miembro, admin |
+| Field                                              | Values                                     |
+| -------------------------------------------------- | ------------------------------------------ |
+| `persona.sexo` (`models.py:154-158`)               | M (Masculino), F (Femenino), O (Otro)      |
+| `publicacion_semanal.estado` (`models.py:330-348`) | borrador, publicado, cerrado, cancelado    |
+| `producto_semanal.estado` (`models.py:372-387`)    | activo, inactivo                           |
+| `corte.estado` (`models.py:574-578`)               | abierto, cerrado, cuadrado                 |
+| `recoleccion.estado` (`models.py:809-821`)         | pendiente, en_ruta, recolectado, cancelado |
+| `liquidacion.estado` (`models.py:932-936`)         | pendiente, pagada, parcial                 |
+| `documento.tipo_documento` (`models.py:728-732`)   | imagen, audio, video                       |
+| `integrantes.rol` (`models.py:682,689`)            | miembro, admin                             |
 
 No `TextChoices`/`IntegerChoices` classes are used — all are inline tuple lists.
 
 ### Table-enumerations (lookup tables seeded as data)
 
-| Table | Seeded values | Evidence |
-|---|---|---|
-| roles | Admin, Vendedor, Agricultor, Cliente | `seed_rassa_data.py:195-227` |
-| estado_pedido | pendiente, confirmado, en_preparacion, listo_para_retirar, entregado, cancelado, **activo** (legacy, unused) | `seed_rassa_data.py:316-355`; "activo" referenced nowhere in API code |
-| decision_merma | Donar, Desechar, Vender más barato, Compostar | `seed_rassa_data.py:358-367` |
-| tipo_pago | Efectivo, Transferencia, Depósito | `seed_rassa_data.py:370-379` |
+| Table          | Seeded values                                                                                                | Evidence                                                              |
+| -------------- | ------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------- |
+| roles          | Admin, Vendedor, Agricultor, Cliente                                                                         | `seed_rassa_data.py:195-227`                                          |
+| estado_pedido  | pendiente, confirmado, en_preparacion, listo_para_retirar, entregado, cancelado, **activo** (legacy, unused) | `seed_rassa_data.py:316-355`; "activo" referenced nowhere in API code |
+| decision_merma | Donar, Desechar, Vender más barato, Compostar                                                                | `seed_rassa_data.py:358-367`                                          |
+| tipo_pago      | Efectivo, Transferencia, Depósito                                                                            | `seed_rassa_data.py:370-379`                                          |
 
 The state machines built on these values are enforced only in application code:
 pedido `SECUENCIA`/`ESTADOS_TERMINALES`/`ESTADOS_CANCELABLES`
@@ -652,7 +690,7 @@ borrador publication (`publicacion/views.py:290-324`); publicacion destroy sets 
   persona.fk_localidad is SET_NULL). The API additionally refuses permanent municipio
   deletion while localidades exist.
 - Deleting a **persona** cascades to usuario; deleting a **usuario** cascades to
-  `familia_usuario` and `integrantes`/`mensaje`/`documento` children *only where CASCADE*:
+  `familia_usuario` and `integrantes`/`mensaje`/`documento` children _only where CASCADE_:
   actually `integrantes.fk_usuario` and `familia_usuario.fk_usuario` CASCADE — but
   `recoleccion.fk_agricultor`, `merma.fk_pedido`, `liquidacion_venta.fk_pedido`,
   `pago.fk_tipo`, catalog FKs are PROTECT, so **deleting a user who has recolecciones, or a

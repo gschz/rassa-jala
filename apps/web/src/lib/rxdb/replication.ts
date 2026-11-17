@@ -37,9 +37,7 @@ type ReplicationHandle = {
   cancel: () => Promise<void>;
 };
 
-function pullHandler<TDoc>(
-  coleccion: Coleccion,
-): ReplicationPullHandler<TDoc, SyncCheckpoint> {
+function pullHandler<TDoc>(coleccion: Coleccion): ReplicationPullHandler<TDoc, SyncCheckpoint> {
   return async (lastPulledCheckpoint, batchSize) => {
     const res = await pullBatch<TDoc & { _deleted?: boolean }>(
       coleccion,
@@ -55,8 +53,7 @@ function pullHandler<TDoc>(
       // The server emits `_deleted` explicitly (sync doc §4.1); default to
       // false when absent.
       documents: res.documentos.map(
-        ({ _deleted, ...doc }) =>
-          ({ ...doc, _deleted: _deleted === true }) as WithDeleted<TDoc>,
+        ({ _deleted, ...doc }) => ({ ...doc, _deleted: _deleted === true }) as WithDeleted<TDoc>,
       ),
       checkpoint: res.checkpoint ?? undefined,
     };
@@ -71,21 +68,12 @@ function pushLocalidadesHandler(): ReplicationPushHandler<LocalidadDoc> {
       // (docId, _rev) alternative of §7 is not usable with this RxDB version.
       operationId: row.newDocumentState.syncOpId ?? crypto.randomUUID(),
       docId: row.newDocumentState.id,
-      op: row.newDocumentState._deleted
-        ? "delete"
-        : row.assumedMasterState
-          ? "update"
-          : "create",
+      op: row.newDocumentState._deleted ? "delete" : row.assumedMasterState ? "update" : "create",
       nuevoEstado: row.newDocumentState,
-      versionAsumida: row.assumedMasterState
-        ? row.assumedMasterState.version
-        : null,
+      versionAsumida: row.assumedMasterState ? row.assumedMasterState.version : null,
     }));
 
-    const resultados = await pushOperaciones<LocalidadDoc>(
-      "localidades",
-      operaciones,
-    );
+    const resultados = await pushOperaciones<LocalidadDoc>("localidades", operaciones);
 
     const conflicts: WithDeleted<LocalidadDoc>[] = [];
     for (const resultado of resultados) {
@@ -148,11 +136,7 @@ export type ReplicationSet = {
 export function startReplications(db: RassaDatabase): ReplicationSet {
   const handles: ReplicationHandle[] = [
     startReplication<MunicipioDoc>("municipios", db.municipios, undefined),
-    startReplication<LocalidadDoc>(
-      "localidades",
-      db.localidades,
-      pushLocalidadesHandler(),
-    ),
+    startReplication<LocalidadDoc>("localidades", db.localidades, pushLocalidadesHandler()),
     startReplication<CategoriaDoc>("categorias", db.categorias, undefined),
     startReplication<UnidadDoc>("unidades", db.unidades, undefined),
   ];

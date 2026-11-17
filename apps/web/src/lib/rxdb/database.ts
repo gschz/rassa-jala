@@ -91,14 +91,7 @@ export const localidadesSchema: RxJsonSchema<LocalidadDoc> = {
     actualizadoEn: { type: "string" },
     syncOpId: { type: "string", maxLength: 36 },
   },
-  required: [
-    "id",
-    "nombre",
-    "fkMunicipio",
-    "estado",
-    "version",
-    "actualizadoEn",
-  ],
+  required: ["id", "nombre", "fkMunicipio", "estado", "version", "actualizadoEn"],
 };
 
 export const categoriasSchema: RxJsonSchema<CategoriaDoc> = {

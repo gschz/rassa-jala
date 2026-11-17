@@ -3,6 +3,7 @@ import { RouterProvider, createRouter } from "@tanstack/react-router";
 import ReactDOM from "react-dom/client";
 
 import Loader from "./components/loader";
+import { setSessionExpiredHandler } from "./lib/auth/session";
 import { routeTree } from "./routeTree.gen";
 import { queryClient, trpc } from "./utils/trpc";
 
@@ -15,6 +16,11 @@ const router = createRouter({
   Wrap: function WrapComponent({ children }: { children: React.ReactNode }) {
     return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
   },
+});
+
+// Session loss detected by the transport (failed silent refresh) lands on /login.
+setSessionExpiredHandler(() => {
+  void router.navigate({ to: "/login" });
 });
 
 declare module "@tanstack/react-router" {

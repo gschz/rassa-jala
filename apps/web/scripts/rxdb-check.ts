@@ -48,7 +48,10 @@ const db1 = await createRxDatabase({
 await db1.addCollections({ localidades: { ...collectionCreators.localidades } });
 await db1.localidades.insert(doc);
 const readBack = await db1.localidades.findOne(doc.id).exec();
-check("local write visible in the writing instance", readBack != null && readBack.nombre === doc.nombre);
+check(
+  "local write visible in the writing instance",
+  readBack != null && readBack.nombre === doc.nombre,
+);
 await db1.close();
 
 // Instance 2 — a fresh RxDB over the same store proves persistence.
@@ -70,7 +73,10 @@ check(
 );
 // The UI lists live queries with sort; prove the sorted-find path too.
 const sorted = await db2.localidades.find({ sort: [{ nombre: "asc" }] }).exec();
-check("sorted live-query path reads persisted docs", sorted.length === 1 && sorted[0].id === doc.id);
+check(
+  "sorted live-query path reads persisted docs",
+  sorted.length === 1 && sorted[0].id === doc.id,
+);
 await db2.close();
 
 if (failures > 0) process.exit(1);

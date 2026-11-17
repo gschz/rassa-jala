@@ -39,6 +39,7 @@ import {
 import { startReplications } from "../src/lib/rxdb/replication";
 import { pushOperaciones } from "../src/lib/rxdb/sync-client";
 import { getSyncStatus, resolvePending, trackPending } from "../src/lib/rxdb/sync-status";
+import { setSession } from "../src/lib/auth/session";
 
 // Bun evaluates the CJS dexie build with empty domDeps unless the fake
 // implementation is passed explicitly (same workaround as scripts/rxdb-check.ts).
@@ -69,7 +70,11 @@ function must(ok: boolean, detail: string): void {
 }
 
 /** Bounded poll: retries `attempt` until it returns non-null or the timeout hits (fails loud). */
-async function poll<T>(label: string, timeoutMs: number, attempt: () => Promise<T | null>): Promise<T> {
+async function poll<T>(
+  label: string,
+  timeoutMs: number,
+  attempt: () => Promise<T | null>,
+): Promise<T> {
   const start = Date.now();
   for (;;) {
     const value = await attempt();
@@ -236,6 +241,26 @@ must(
   `points 1+2: Bun.serve backend OK, tRPC healthCheck=${health.result?.data} (@hono/trpc-server)`,
 );
 
+// ---- Phase AUTH: the slice requires an authenticated identity (P0 Autenticación) ----
+// Log in as the dev admin through the real tRPC wire format (batched POST) and populate
+// the session store the client transports read the Bearer token from. The sync procedures
+// reject unauthenticated callers and bind the push actor to this user id.
+const loginRes = await fetch(`${BASE_URL}/trpc/auth.login?batch=1`, {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({ 0: { email: "admin@rassa.local", password: "RassaDev2026!" } }),
+});
+const loginBody = (await loginRes.json()) as Array<{
+  result?: { data?: { accessToken?: string; user?: { id: string; email: string; rol: string } } };
+}>;
+const loginData = loginBody[0]?.result?.data;
+if (loginRes.status !== 200 || !loginData?.accessToken || !loginData.user) {
+  throw new Error("auth: dev admin login failed — the slice requires an authenticated identity");
+}
+record(true, `auth: dev admin login issued an access token (rol=${loginData.user.rol})`);
+setSession(loginData.user, loginData.accessToken);
+const ADMIN_ID = loginData.user.id;
+
 // ---- Phase A: PULL via checkpoints (point 7) ----
 
 const baseline = await pgCounts();
@@ -253,7 +278,10 @@ const pulled = await poll("replication pulls the seed", 45_000, async () => {
     db.unidades.find().exec(),
   ]);
   const counts = { m: m.length, l: l.length, c: c.length, u: u.length };
-  return counts.m === baseline.m && counts.l === baseline.l && counts.c === baseline.cp && counts.u === baseline.u
+  return counts.m === baseline.m &&
+    counts.l === baseline.l &&
+    counts.c === baseline.cp &&
+    counts.u === baseline.u
     ? counts
     : null;
 });
@@ -285,7 +313,9 @@ async function insertLocalidad(nombre: string, fkMunicipio: string): Promise<Loc
 
 // ---- Phase B: local write with pending marker BEFORE push confirmation (point 6) ----
 
-const tepic = await pgQuery<{ id: string }>("select id from municipio where nombre = 'Tepic' limit 1");
+const tepic = await pgQuery<{ id: string }>(
+  "select id from municipio where nombre = 'Tepic' limit 1",
+);
 const fkTepic = tepic[0]!.id;
 
 const docB = await insertLocalidad(e2eName("El Mortero"), fkTepic);
@@ -317,7 +347,10 @@ must(
   `points 5+6 (offline read/write): write persisted locally while offline (syncOpId=${docC.syncOpId})`,
 );
 const leaked = await pgLocalidad(docC.id);
-must(leaked == null, "point 5: offline write NOT on the server while disconnected (no phantom confirmation)");
+must(
+  leaked == null,
+  "point 5: offline write NOT on the server while disconnected (no phantom confirmation)",
+);
 
 // Stay offline longer than retryTime (5s) so the replication enters its retry schedule.
 await sleep(6_500);
@@ -329,9 +362,10 @@ const rowC = await poll("offline write applied after reconnect", 45_000, async (
   return row && row.nombre === docC.nombre ? row : null;
 });
 const verdictC = await poll("sync_operacion verdict for the offline write", 15_000, async () => {
-  const rows = await pgQuery<PgOperacion>("select id, doc_id, op, veredicto from sync_operacion where id = $1", [
-    docC.syncOpId!,
-  ]);
+  const rows = await pgQuery<PgOperacion>(
+    "select id, doc_id, op, veredicto from sync_operacion where id = $1",
+    [docC.syncOpId!],
+  );
   return rows[0] ?? null;
 });
 must(
@@ -445,7 +479,13 @@ reps.reSyncAll();
 const pulledTombstone = await poll("pull reflects the tombstone locally", 25_000, async () => {
   const doc = await db.localidades.findOne(BID).exec();
   const checkpoint = getSyncStatus().collections.localidades.checkpoint;
-  if (doc === null && checkpoint != null && checkpointBefore != null && checkpoint > checkpointBefore) return true;
+  if (
+    doc === null &&
+    checkpoint != null &&
+    checkpointBefore != null &&
+    checkpoint > checkpointBefore
+  )
+    return true;
   return null;
 });
 must(
@@ -495,13 +535,21 @@ const touched = await pgQuery<{
   version: number;
   estado: boolean;
   actualizado_en: string;
-}>("select id, nombre, version::int, estado, fk_municipio, actualizado_en from localidad where id = any($1::uuid[])", [
-  touchedIds,
-]);
-const ops = await pgQuery<PgOperacion>("select id, doc_id, op, veredicto from sync_operacion where doc_id = any($1::uuid[])", [
-  touchedIds,
-]);
-const cambios = await pgQuery<{ id: number; tabla_origen: string; id_fila: string; operacion: string; actor: string }>(
+}>(
+  "select id, nombre, version::int, estado, fk_municipio, actualizado_en from localidad where id = any($1::uuid[])",
+  [touchedIds],
+);
+const ops = await pgQuery<PgOperacion & { fk_usuario: string }>(
+  "select id, doc_id, op, veredicto, fk_usuario from sync_operacion where doc_id = any($1::uuid[])",
+  [touchedIds],
+);
+const cambios = await pgQuery<{
+  id: number;
+  tabla_origen: string;
+  id_fila: string;
+  operacion: string;
+  actor: string;
+}>(
   "select id, tabla_origen, id_fila, operacion, actor from sync_cambio where id_fila = any($1::uuid[]) order by id",
   [touchedIds],
 );
@@ -513,8 +561,14 @@ must(
     ops.length >= 5 &&
     ops.every((o) => o.veredicto === "aplicada" || o.veredicto === "conflicto") &&
     cambios.length >= 4 &&
-    touched.every((t) => t.actualizado_en != null),
-  `point 9 (PostgreSQL): ${touched.length} localidad rows with version/actualizado_en, ${ops.length} sync_operacion verdicts, ${cambios.length} sync_cambio outbox rows`,
+    touched.every((t) => t.actualizado_en != null) &&
+    // P0 auth: the push actor is the AUTHENTICATED user id, not the old dev stub.
+    ops.every((o) => o.fk_usuario === ADMIN_ID) &&
+    // The seed transaction writes its own outbox rows with actor='dev-seed' (pre-auth);
+    // every row the APP wrote must carry the authenticated user id.
+    cambios.every((c) => c.actor === ADMIN_ID || c.actor === "dev-seed") &&
+    cambios.some((c) => c.actor === ADMIN_ID),
+  `point 9 (PostgreSQL): ${touched.length} localidad rows with version/actualizado_en, ${ops.length} sync_operacion verdicts (actor=auth user), ${cambios.length} sync_cambio outbox rows (actor=auth user)`,
 );
 
 // ---- teardown ----

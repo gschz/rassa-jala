@@ -3,6 +3,7 @@ import type { AnyRouter } from "@trpc/server";
 import type { WithDeleted } from "rxdb/plugins/core";
 
 import { ENV } from "../../env";
+import { authFetch } from "../auth/http";
 
 /**
  * tRPC transport for the replication handlers.
@@ -11,23 +12,22 @@ import { ENV } from "../../env";
  * docs/synchronization.md §3.1/§4.1/§5.1 (the contract) instead of the typed
  * AppRouter proxy: the server implements them in parallel, so this module must
  * compile against the DOC, not against the server's current code state.
+ *
+ * P0 auth: replication requests are authenticated (Bearer access token + cookies via
+ * authFetch; the server binds actor/fk_usuario to the authenticated identity).
  */
 const syncClient = createTRPCUntypedClient<AnyRouter>({
   links: [
     httpBatchLink({
       url: `${ENV.VITE_SERVER_URL.replace(/\/$/, "")}/trpc`,
+      fetch: authFetch,
     }),
   ],
 });
 
 export type SyncCheckpoint = { seq: number };
 
-const COLECCIONES = [
-  "municipios",
-  "localidades",
-  "categorias",
-  "unidades",
-] as const;
+const COLECCIONES = ["municipios", "localidades", "categorias", "unidades"] as const;
 export type Coleccion = (typeof COLECCIONES)[number];
 
 /** sync.{coleccion}.pull — sync doc §3.1/§4.1 (one procedure per collection). */

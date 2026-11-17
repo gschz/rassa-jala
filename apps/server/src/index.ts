@@ -14,6 +14,10 @@ app.use(
   cors({
     origin: ENV.CORS_ORIGIN,
     allowMethods: ["GET", "POST", "OPTIONS"],
+    // P0 auth: the httpOnly refresh cookie and the Authorization header travel
+    // cross-origin from the web app, so credentials must be allowed explicitly.
+    credentials: true,
+    allowHeaders: ["authorization", "content-type"],
   }),
 );
 

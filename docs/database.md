@@ -32,12 +32,12 @@ Introspección READ-ONLY (`information_schema`, `pg_catalog`, `count(*)`) ejecut
 
 ### 2.2 Veredicto de contraste por fuente
 
-| Fuente | Veredicto | Evidencia |
-|---|---|---|
-| Base entregada (`rassa_jala_db`) | GANA para la estructura observada (tablas, columnas, tipos, constraints) | Introspección 16/11/2026: 46 tablas, 45 secuencias, 194 índices, 0 enums, 0 triggers, 0 vistas |
-| Modelos ORM (`legacy/.../models.py`, DA §1–§3) | GANA para la semántica de negocio y `on_delete` (que en la BD entregada NO vive a nivel SQL) | DA §3; introspección: todas las FK `DEFERRABLE INITIALLY DEFERRED`, acción por defecto (NO ACTION) |
-| Migraciones (`django_migrations`) | Cadena aplicada confirmada hasta **0026** | **CONFIRMADO**: 52 registros `app='rassa'` (incluye predecesores del squash `0007_squash_all_branches`, aplicado); última aplicada `0026_merge_20260804_1000`; **`0027_add_fk_pedido_to_merma` NO aplicada** (0 registros) |
-| Archivo SQL (`db/archive/rassa_jala.sql`) | Solo documentación del diseño original | DA §1.1; el archivo no coincide ni con el ORM ni con la BD entregada |
+| Fuente                                         | Veredicto                                                                                    | Evidencia                                                                                                                                                                                                                  |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Base entregada (`rassa_jala_db`)               | GANA para la estructura observada (tablas, columnas, tipos, constraints)                     | Introspección 16/11/2026: 46 tablas, 45 secuencias, 194 índices, 0 enums, 0 triggers, 0 vistas                                                                                                                             |
+| Modelos ORM (`legacy/.../models.py`, DA §1–§3) | GANA para la semántica de negocio y `on_delete` (que en la BD entregada NO vive a nivel SQL) | DA §3; introspección: todas las FK `DEFERRABLE INITIALLY DEFERRED`, acción por defecto (NO ACTION)                                                                                                                         |
+| Migraciones (`django_migrations`)              | Cadena aplicada confirmada hasta **0026**                                                    | **CONFIRMADO**: 52 registros `app='rassa'` (incluye predecesores del squash `0007_squash_all_branches`, aplicado); última aplicada `0026_merge_20260804_1000`; **`0027_add_fk_pedido_to_merma` NO aplicada** (0 registros) |
+| Archivo SQL (`db/archive/rassa_jala.sql`)      | Solo documentación del diseño original                                                       | DA §1.1; el archivo no coincide ni con el ORM ni con la BD entregada                                                                                                                                                       |
 
 **Conclusión de contraste:** la base entregada replica el estado ORM **hasta la migración 0026**. Difiere del estado final del modelo auditado en un solo punto estructural: `merma.fk_pedido` (migración 0027) no existe en la BD entregada. Todo lo demás del inventario DA §2 se verificó columna por columna y coincide.
 
@@ -47,15 +47,15 @@ Introspección READ-ONLY (`information_schema`, `pg_catalog`, `count(*)`) ejecut
 
 Conteo de filas observado (evidencia; datos de prueba/semilla y actividad real mezclados):
 
-| Ámbito | Tablas (filas) |
-|---|---|
+| Ámbito              | Tablas (filas)                                                                                                                    |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
 | Identidad/ubicación | roles 4 · persona 12 · usuario 12 · auth_user 12 · familia 4 · familia_usuario 9 · municipio 20 · localidad 99 · limite_cliente 4 |
-| Catálogos | categoria_producto 6 · unidad 5 · estado_pedido 7 · decision_merma 4 · tipo_pago 3 · producto 20 · producto_imagen 4 |
-| Oferta semanal | publicacion_semanal 9 · producto_semanal 20 |
-| Pedidos/pagos | pedido_cabecera 10 · detalle_pedido 29 · pago 4 · recibo 4 · historial_estado_pedido 23 |
-| Logística/finanzas | recoleccion 6 · historial_estado_recoleccion 0 · corte 3 · liquidacion 5 · liquidacion_venta 0 · merma 4 |
-| Chat/documentos | conversacion 11 · integrantes 20 · mensaje 19 · documento 4 · mensajes_documentos 4 |
-| Sistema | logs 109 · token_blacklist_outstandingtoken 46 · blacklistedtoken 0 |
+| Catálogos           | categoria_producto 6 · unidad 5 · estado_pedido 7 · decision_merma 4 · tipo_pago 3 · producto 20 · producto_imagen 4              |
+| Oferta semanal      | publicacion_semanal 9 · producto_semanal 20                                                                                       |
+| Pedidos/pagos       | pedido_cabecera 10 · detalle_pedido 29 · pago 4 · recibo 4 · historial_estado_pedido 23                                           |
+| Logística/finanzas  | recoleccion 6 · historial_estado_recoleccion 0 · corte 3 · liquidacion 5 · liquidacion_venta 0 · merma 4                          |
+| Chat/documentos     | conversacion 11 · integrantes 20 · mensaje 19 · documento 4 · mensajes_documentos 4                                               |
+| Sistema             | logs 109 · token_blacklist_outstandingtoken 46 · blacklistedtoken 0                                                               |
 
 Clases de sincronización (taxonomía usada en todo el documento; deriva de audit-findings §6 y las reglas de `docs/synchronization.md` §6):
 
@@ -68,73 +68,73 @@ Necesidad offline: **L** = lectura offline necesaria; **E** = escritura offline 
 
 ### 3.1 Identidad, ubicación y familias
 
-| Tabla | Propósito | PK | Relaciones principales | Restricciones clave | Reglas | Offline | Sync |
-|---|---|---|---|---|---|---|---|
-| `roles` | Catálogo de roles (Admin, Vendedor, Agricultor, Cliente) | `id_rol` int | FKs entrantes desde `usuario` (PROTECT) | UNIQUE `nombre_rol`; soft-delete `estado` | seed; F-26 (vocabulario de roles) | L | S1 |
-| `persona` | Datos personales de cada usuario | `id_persona` int | `usuario` 1:1 (CASCADE); FK `localidad` SET_NULL | `sexo` varchar(1) sin CHECK (datos: solo M/F observados); soft-delete | DA §2; Q-20 | L | S1 |
-| `usuario` | Perfil de negocio vinculado a identidad de login | `id_usuario` int | 1:1 `auth_user` (SET_NULL) y 1:1 `persona` (CASCADE); FK `roles` PROTECT | UNIQUE `correo`, UNIQUE `fk_persona`, UNIQUE `fk_user`; soft-delete | U1–U3; F-01 (login ignora `estado`); `auth_user.username == email` CONFIRMADO en datos | L | S1 |
-| `familia` | Grupo familiar (crédito compartido) | `id_familia` int | FK `usuario` jefe (SET_NULL); N:M con `usuario` vía `familia_usuario` | soft-delete; trash/restore/permanent (DA §7.1) | F1–F3; F-09 | L | S1 |
-| `familia_usuario` | Membresía usuario↔familia | `id_familia_usuario` int | FK CASCADE hacia `usuario` y `familia` | **Sin** UNIQUE sobre `fk_usuario` (una membresía "activa" se fuerza solo en serializador) | F1; F-09; Q-21 (datos entregados: sin duplicados activos — CONFIRMADO) | L | S1 |
-| `limite_cliente` | Límite de crédito por usuario | `id_limite` int | 1:1 `usuario` (CASCADE, UNIQUE) | `monto` numeric(10,2) sin CHECK ≥ 0 (F-05) | B6 (crédito familia bajo lock) | L | S1 |
-| `municipio` | Catálogo geográfico | `id_municipio` int | → `localidad` (CASCADE entrante) | soft-delete; **sin `creado_en`** (CONFIRMADO) | trash/restore/permanent | L | S1 |
-| `localidad` | Catálogo geográfico | `id_localidad` int | FK `municipio` CASCADE | soft-delete; **sin `creado_en`** (CONFIRMADO) | trash/restore/permanent | L | S1 |
+| Tabla             | Propósito                                                | PK                       | Relaciones principales                                                   | Restricciones clave                                                                       | Reglas                                                                                 | Offline | Sync |
+| ----------------- | -------------------------------------------------------- | ------------------------ | ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ------- | ---- |
+| `roles`           | Catálogo de roles (Admin, Vendedor, Agricultor, Cliente) | `id_rol` int             | FKs entrantes desde `usuario` (PROTECT)                                  | UNIQUE `nombre_rol`; soft-delete `estado`                                                 | seed; F-26 (vocabulario de roles)                                                      | L       | S1   |
+| `persona`         | Datos personales de cada usuario                         | `id_persona` int         | `usuario` 1:1 (CASCADE); FK `localidad` SET_NULL                         | `sexo` varchar(1) sin CHECK (datos: solo M/F observados); soft-delete                     | DA §2; Q-20                                                                            | L       | S1   |
+| `usuario`         | Perfil de negocio vinculado a identidad de login         | `id_usuario` int         | 1:1 `auth_user` (SET_NULL) y 1:1 `persona` (CASCADE); FK `roles` PROTECT | UNIQUE `correo`, UNIQUE `fk_persona`, UNIQUE `fk_user`; soft-delete                       | U1–U3; F-01 (login ignora `estado`); `auth_user.username == email` CONFIRMADO en datos | L       | S1   |
+| `familia`         | Grupo familiar (crédito compartido)                      | `id_familia` int         | FK `usuario` jefe (SET_NULL); N:M con `usuario` vía `familia_usuario`    | soft-delete; trash/restore/permanent (DA §7.1)                                            | F1–F3; F-09                                                                            | L       | S1   |
+| `familia_usuario` | Membresía usuario↔familia                                | `id_familia_usuario` int | FK CASCADE hacia `usuario` y `familia`                                   | **Sin** UNIQUE sobre `fk_usuario` (una membresía "activa" se fuerza solo en serializador) | F1; F-09; Q-21 (datos entregados: sin duplicados activos — CONFIRMADO)                 | L       | S1   |
+| `limite_cliente`  | Límite de crédito por usuario                            | `id_limite` int          | 1:1 `usuario` (CASCADE, UNIQUE)                                          | `monto` numeric(10,2) sin CHECK ≥ 0 (F-05)                                                | B6 (crédito familia bajo lock)                                                         | L       | S1   |
+| `municipio`       | Catálogo geográfico                                      | `id_municipio` int       | → `localidad` (CASCADE entrante)                                         | soft-delete; **sin `creado_en`** (CONFIRMADO)                                             | trash/restore/permanent                                                                | L       | S1   |
+| `localidad`       | Catálogo geográfico                                      | `id_localidad` int       | FK `municipio` CASCADE                                                   | soft-delete; **sin `creado_en`** (CONFIRMADO)                                             | trash/restore/permanent                                                                | L       | S1   |
 
 ### 3.2 Catálogos de producto
 
-| Tabla | Propósito | PK | Relaciones principales | Restricciones clave | Reglas | Offline | Sync |
-|---|---|---|---|---|---|---|---|
-| `categoria_producto` | Categorías | `id_categoria` int | → `producto` PROTECT | UNIQUE implícita solo PK; soft-delete | trash/restore | L | S1 |
-| `unidad` | Unidades de medida | `id_unidad` int | → `producto`, `producto_semanal` PROTECT | `tipo`/`nombre`/`abreviatura` todas nullable (legacy compat, DA §8.4) | — | L | S1 |
-| `producto` | Catálogo maestro de productos | `id_producto` int | FK `categoria` PROTECT; FK `unidad` PROTECT nullable; → `producto_imagen` CASCADE | CHECK `stock >= 0` (auto Django); `precio` numeric — **datos: 20/20 con precio 0** (el precio vigente vive en `producto_semanal`); `imagen` columna legacy denormalizada | F-16/F-17 (CRUD con rol incorrecto), Q-19, G1–G6 | L | S1 (escritura pendiente: Q-19) |
-| `producto_imagen` | Referencias a imágenes (Drive/Storage) | `id_imagen` int | FK `producto` CASCADE | Partial UNIQUE `es_principal` por producto; `url` varchar(500); `drive_file_id`, `eliminar_pendiente` (máquina de limpieza, F-10; binario ligado a D-1 de `architecture.md`) | G3–G5 | L (URLs) | S1; subida solo-online |
-| `estado_pedido` | Enum-tabla de estados de pedido | `id_estado` int | → `pedido_cabecera` PROTECT; → historial | UNIQUE `tipo_estado`; sin soft-delete | fila 7 `activo` legada sin uso (Q-18) | L | S1 |
-| `decision_merma` | Catálogo de decisiones de merma | `id_decision` int | → `merma` PROTECT | soft-delete | seed 4 valores | L | S1 |
-| `tipo_pago` | Catálogo de formas de pago | `id_tipo_pago` int | → `pago` PROTECT | UNIQUE `nombre`; sin soft-delete | C1 (efectivo por nombre) | L | S1 |
+| Tabla                | Propósito                              | PK                 | Relaciones principales                                                            | Restricciones clave                                                                                                                                                          | Reglas                                           | Offline  | Sync                           |
+| -------------------- | -------------------------------------- | ------------------ | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ | -------- | ------------------------------ |
+| `categoria_producto` | Categorías                             | `id_categoria` int | → `producto` PROTECT                                                              | UNIQUE implícita solo PK; soft-delete                                                                                                                                        | trash/restore                                    | L        | S1                             |
+| `unidad`             | Unidades de medida                     | `id_unidad` int    | → `producto`, `producto_semanal` PROTECT                                          | `tipo`/`nombre`/`abreviatura` todas nullable (legacy compat, DA §8.4)                                                                                                        | —                                                | L        | S1                             |
+| `producto`           | Catálogo maestro de productos          | `id_producto` int  | FK `categoria` PROTECT; FK `unidad` PROTECT nullable; → `producto_imagen` CASCADE | CHECK `stock >= 0` (auto Django); `precio` numeric — **datos: 20/20 con precio 0** (el precio vigente vive en `producto_semanal`); `imagen` columna legacy denormalizada     | F-16/F-17 (CRUD con rol incorrecto), Q-19, G1–G6 | L        | S1 (escritura pendiente: Q-19) |
+| `producto_imagen`    | Referencias a imágenes (Drive/Storage) | `id_imagen` int    | FK `producto` CASCADE                                                             | Partial UNIQUE `es_principal` por producto; `url` varchar(500); `drive_file_id`, `eliminar_pendiente` (máquina de limpieza, F-10; binario ligado a D-1 de `architecture.md`) | G3–G5                                            | L (URLs) | S1; subida solo-online         |
+| `estado_pedido`      | Enum-tabla de estados de pedido        | `id_estado` int    | → `pedido_cabecera` PROTECT; → historial                                          | UNIQUE `tipo_estado`; sin soft-delete                                                                                                                                        | fila 7 `activo` legada sin uso (Q-18)            | L        | S1                             |
+| `decision_merma`     | Catálogo de decisiones de merma        | `id_decision` int  | → `merma` PROTECT                                                                 | soft-delete                                                                                                                                                                  | seed 4 valores                                   | L        | S1                             |
+| `tipo_pago`          | Catálogo de formas de pago             | `id_tipo_pago` int | → `pago` PROTECT                                                                  | UNIQUE `nombre`; sin soft-delete                                                                                                                                             | C1 (efectivo por nombre)                         | L        | S1                             |
 
 ### 3.3 Oferta semanal
 
-| Tabla | Propósito | PK | Relaciones principales | Restricciones clave | Reglas | Offline | Sync |
-|---|---|---|---|---|---|---|---|
-| `publicacion_semanal` | Oferta semanal del agricultor | `id_publicacion` int | FK `usuario` agricultor SET_NULL; → `producto_semanal` CASCADE | UNIQUE `(fk_agricultor, semana)`; CHECK `semana 1–52` (`check_semana_range`) + CHECK auto `semana >= 0`; `estado` varchar lifecycle borrador/publicado/cerrado/cancelado sin CHECK de dominio | Pu1–Pu6; Q-25 | L; borrador local E condicionado | S2 |
-| `producto_semanal` | Ítems publicados con precio/stock vigentes | `id_producto_semanal` int | FK `publicacion` CASCADE; FK `producto` PROTECT; FK `unidad` PROTECT | CHECK `stock >= 0` (auto); `precio > 0` y `stock` de publicación validados solo app (Pu4, F-05); `estado` activo/inactivo | B2, B4; M1 | L | S2 |
+| Tabla                 | Propósito                                  | PK                        | Relaciones principales                                               | Restricciones clave                                                                                                                                                                           | Reglas        | Offline                          | Sync |
+| --------------------- | ------------------------------------------ | ------------------------- | -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- | -------------------------------- | ---- |
+| `publicacion_semanal` | Oferta semanal del agricultor              | `id_publicacion` int      | FK `usuario` agricultor SET_NULL; → `producto_semanal` CASCADE       | UNIQUE `(fk_agricultor, semana)`; CHECK `semana 1–52` (`check_semana_range`) + CHECK auto `semana >= 0`; `estado` varchar lifecycle borrador/publicado/cerrado/cancelado sin CHECK de dominio | Pu1–Pu6; Q-25 | L; borrador local E condicionado | S2   |
+| `producto_semanal`    | Ítems publicados con precio/stock vigentes | `id_producto_semanal` int | FK `publicacion` CASCADE; FK `producto` PROTECT; FK `unidad` PROTECT | CHECK `stock >= 0` (auto); `precio > 0` y `stock` de publicación validados solo app (Pu4, F-05); `estado` activo/inactivo                                                                     | B2, B4; M1    | L                                | S2   |
 
 ### 3.4 Pedidos y pagos
 
-| Tabla | Propósito | PK | Relaciones principales | Restricciones clave | Reglas | Offline | Sync |
-|---|---|---|---|---|---|---|---|
-| `pedido_cabecera` | Encabezado de pedido | `id_pedido` int | FKs `usuario` cliente/vendedor SET_NULL; FK `estado_pedido` PROTECT; → detalles/pagos/historiales | `total`, `subtotal`, `iva` numeric(10,2) **sin CHECK** (`total = subtotal + iva` se recalcula en `save()`); `fk_estado` sin default en BD (default=1 es app-level); `fecha_expiracion` nunca escrita por el flujo (B9) | B1–B9; F-13/F-14 (idempotencia ignorada server-side) | L; **E** (creación en cola; validación de stock/crédito central) | S2 |
-| `detalle_pedido` | Líneas de pedido | `id_detalle` int | FK `pedido` CASCADE; FK `producto_semanal` CASCADE | CHECK `cantidad >= 0` (auto); `importe` recalculado en `save()`; snapshot `nombre_producto` | B2–B4; F-29 | L; **E** junto al pedido | S2 |
-| `pago` | Pago de pedido o dispersión de liquidación (`fk_pedido` NULL) | `id_pago` int | FK `pedido` SET_NULL; FK `tipo_pago` PROTECT; → recibos, liquidaciones | UNIQUE `folio`; UNIQUE `fk_pedido` (nulls-distinct por defecto: múltiples NULL = pagos de liquidación); folio generado en app bajo `pg_advisory_xact_lock` (P4, F-07) | P1–P5; F-05 | L | S2 (escritura solo-online confirmada) |
-| `recibo` | Recibo impreso/consultable | `id_recibo` int | FK `pago`/`pedido` SET_NULL | UNIQUE `folio` | **Sin escritor de API** (Q-09, DA §8.3); datos: 4 filas de semilla con folio `REC-…` | L | S1 (sujeto a D-5) |
-| `historial_estado_pedido` | Bitácora de transiciones | `id_historial` int | FKs `pedido`/`estado_anterior` SET_NULL; `estado_nuevo` PROTECT; `usuario` SET_NULL | append-only; server-owned | B8 | L | S1 (copia derivada) |
+| Tabla                     | Propósito                                                     | PK                 | Relaciones principales                                                                            | Restricciones clave                                                                                                                                                                                                    | Reglas                                                                               | Offline                                                          | Sync                                  |
+| ------------------------- | ------------------------------------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------- | ------------------------------------- |
+| `pedido_cabecera`         | Encabezado de pedido                                          | `id_pedido` int    | FKs `usuario` cliente/vendedor SET_NULL; FK `estado_pedido` PROTECT; → detalles/pagos/historiales | `total`, `subtotal`, `iva` numeric(10,2) **sin CHECK** (`total = subtotal + iva` se recalcula en `save()`); `fk_estado` sin default en BD (default=1 es app-level); `fecha_expiracion` nunca escrita por el flujo (B9) | B1–B9; F-13/F-14 (idempotencia ignorada server-side)                                 | L; **E** (creación en cola; validación de stock/crédito central) | S2                                    |
+| `detalle_pedido`          | Líneas de pedido                                              | `id_detalle` int   | FK `pedido` CASCADE; FK `producto_semanal` CASCADE                                                | CHECK `cantidad >= 0` (auto); `importe` recalculado en `save()`; snapshot `nombre_producto`                                                                                                                            | B2–B4; F-29                                                                          | L; **E** junto al pedido                                         | S2                                    |
+| `pago`                    | Pago de pedido o dispersión de liquidación (`fk_pedido` NULL) | `id_pago` int      | FK `pedido` SET_NULL; FK `tipo_pago` PROTECT; → recibos, liquidaciones                            | UNIQUE `folio`; UNIQUE `fk_pedido` (nulls-distinct por defecto: múltiples NULL = pagos de liquidación); folio generado en app bajo `pg_advisory_xact_lock` (P4, F-07)                                                  | P1–P5; F-05                                                                          | L                                                                | S2 (escritura solo-online confirmada) |
+| `recibo`                  | Recibo impreso/consultable                                    | `id_recibo` int    | FK `pago`/`pedido` SET_NULL                                                                       | UNIQUE `folio`                                                                                                                                                                                                         | **Sin escritor de API** (Q-09, DA §8.3); datos: 4 filas de semilla con folio `REC-…` | L                                                                | S1 (sujeto a D-5)                     |
+| `historial_estado_pedido` | Bitácora de transiciones                                      | `id_historial` int | FKs `pedido`/`estado_anterior` SET_NULL; `estado_nuevo` PROTECT; `usuario` SET_NULL               | append-only; server-owned                                                                                                                                                                                              | B8                                                                                   | L                                                                | S1 (copia derivada)                   |
 
 ### 3.5 Logística y cierre financiero
 
-| Tabla | Propósito | PK | Relaciones principales | Restricciones clave | Reglas | Offline | Sync |
-|---|---|---|---|---|---|---|---|
-| `recoleccion` | Agenda de recolección por agricultor/fecha | `id_recoleccion` int | FK `usuario` agricultor **PROTECT NOT NULL** | Partial UNIQUE `(fk_agricultor, fecha_recoleccion) WHERE estado ≠ 'cancelado'`; `estado` varchar lifecycle pendiente/en_ruta/recolectado/cancelado; `hora_inicio/fin` **tipo `time`** | R1–R7; F-25 (zona horaria, Q-22) | L; creación offline colisiona con R1 → adjudicación central | S2 |
-| `historial_estado_recoleccion` | Bitácora de transiciones de recolección | `id_historial` int | FK `recoleccion` CASCADE; `usuario` SET_NULL | append-only | — | L | S1 (copia derivada) |
-| `corte` | Cierre de caja por vendedor/día | `id_corte` int | FK `usuario` vendedor SET_NULL (columna real: **`fk_vendedor_id`**, sin `db_column` en el modelo — DA/legado `models.py:581`) | Partial UNIQUE `(fk_vendedor_id, fecha) WHERE fk_vendedor_id IS NOT NULL`; `diferencia` snapshot sin CHECK; `fecha` con índice | C1–C4 | L (teórico depende de datos del servidor) | S2 |
-| `liquidacion` | Liquidación semanal del agricultor | `id_liquidacion` int | FK `usuario` agricultor SET_NULL; FK `pago` dispersión SET_NULL; → `liquidacion_venta` CASCADE | UNIQUE `(fk_agricultor, periodo_inicio, periodo_fin)` (anti-duplicado any-state, L7); `tasa_comision` numeric(5,4) default 0.10 app-level; `monto_liquidar` sin CHECK | L1–L9; F-05 | L (solo admin) | S2 |
-| `liquidacion_venta` | Snapshot de líneas del agricultor por liquidación | `id_liquidacion_venta` int | FK `liquidacion` CASCADE; FK `pedido` PROTECT | UNIQUE `(fk_liquidacion, fk_pedido)` | L4, L6 | L | S2 |
-| `merma` | Pérdidas registradas | `id_merma` int | FK `decision` PROTECT; FK `producto_semanal` SET_NULL | CHECK `cantidad >= 0` (auto) | M1–M3; **en la BD entregada NO existe `merma.fk_pedido`** (0027 sin aplicar) — CONFIRMADO | L | S2 |
+| Tabla                          | Propósito                                         | PK                         | Relaciones principales                                                                                                        | Restricciones clave                                                                                                                                                                   | Reglas                                                                                    | Offline                                                     | Sync                |
+| ------------------------------ | ------------------------------------------------- | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------- | ------------------- |
+| `recoleccion`                  | Agenda de recolección por agricultor/fecha        | `id_recoleccion` int       | FK `usuario` agricultor **PROTECT NOT NULL**                                                                                  | Partial UNIQUE `(fk_agricultor, fecha_recoleccion) WHERE estado ≠ 'cancelado'`; `estado` varchar lifecycle pendiente/en_ruta/recolectado/cancelado; `hora_inicio/fin` **tipo `time`** | R1–R7; F-25 (zona horaria, Q-22)                                                          | L; creación offline colisiona con R1 → adjudicación central | S2                  |
+| `historial_estado_recoleccion` | Bitácora de transiciones de recolección           | `id_historial` int         | FK `recoleccion` CASCADE; `usuario` SET_NULL                                                                                  | append-only                                                                                                                                                                           | —                                                                                         | L                                                           | S1 (copia derivada) |
+| `corte`                        | Cierre de caja por vendedor/día                   | `id_corte` int             | FK `usuario` vendedor SET_NULL (columna real: **`fk_vendedor_id`**, sin `db_column` en el modelo — DA/legado `models.py:581`) | Partial UNIQUE `(fk_vendedor_id, fecha) WHERE fk_vendedor_id IS NOT NULL`; `diferencia` snapshot sin CHECK; `fecha` con índice                                                        | C1–C4                                                                                     | L (teórico depende de datos del servidor)                   | S2                  |
+| `liquidacion`                  | Liquidación semanal del agricultor                | `id_liquidacion` int       | FK `usuario` agricultor SET_NULL; FK `pago` dispersión SET_NULL; → `liquidacion_venta` CASCADE                                | UNIQUE `(fk_agricultor, periodo_inicio, periodo_fin)` (anti-duplicado any-state, L7); `tasa_comision` numeric(5,4) default 0.10 app-level; `monto_liquidar` sin CHECK                 | L1–L9; F-05                                                                               | L (solo admin)                                              | S2                  |
+| `liquidacion_venta`            | Snapshot de líneas del agricultor por liquidación | `id_liquidacion_venta` int | FK `liquidacion` CASCADE; FK `pedido` PROTECT                                                                                 | UNIQUE `(fk_liquidacion, fk_pedido)`                                                                                                                                                  | L4, L6                                                                                    | L                                                           | S2                  |
+| `merma`                        | Pérdidas registradas                              | `id_merma` int             | FK `decision` PROTECT; FK `producto_semanal` SET_NULL                                                                         | CHECK `cantidad >= 0` (auto)                                                                                                                                                          | M1–M3; **en la BD entregada NO existe `merma.fk_pedido`** (0027 sin aplicar) — CONFIRMADO | L                                                           | S2                  |
 
 ### 3.6 Chat y documentos
 
-| Tabla | Propósito | PK | Relaciones principales | Restricciones clave | Reglas | Offline | Sync |
-|---|---|---|---|---|---|---|---|
-| `conversacion` | Conversación privada o grupal (familiar) | `id_conversacion` int | FK `familia` SET_NULL; → `integrantes`, `mensaje` | Partial UNIQUE `fk_familia WHERE estado AND fk_familia IS NOT NULL`; `tipo` bool (false=privada, true=grupal) | F4–F5; Ch1 | L; **E** | **S3** |
-| `integrantes` | Membresía en conversación | `id_miembro` int | FK CASCADE hacia `usuario` y `conversacion` | UNIQUE `(fk_usuario, fk_conversacion)`; `rol` miembro/admin | F4 | L; **E** | **S3** |
-| `mensaje` | Mensaje | `id_mensaje` int | FK `conversacion` CASCADE; FK `emisor` SET_NULL | `contenido` nullable (mensajes solo-imagen); `leido`, `editado` bool; soft-delete con ventana 15 min | Ch2–Ch3; F-22 | L; **E** | **S3** |
-| `documento` | Adjunto (referencia a archivo) | `id_documento` int | FK `usuario` SET_NULL; → `mensajes_documentos` | `tipo_documento` varchar(50) sin CHECK (datos: imagen/audio) | Ch4; F-24 | L; subida solo-online | **S3** (referencias) |
-| `mensajes_documentos` | Adjunto adjuntado a mensaje | `id_mensaje_documento` int | FK CASCADE hacia `mensaje` y `documento` | UNIQUE `(fk_mensaje, fk_documento)` | — | L | **S3** |
+| Tabla                 | Propósito                                | PK                         | Relaciones principales                            | Restricciones clave                                                                                           | Reglas        | Offline               | Sync                 |
+| --------------------- | ---------------------------------------- | -------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | ------------- | --------------------- | -------------------- |
+| `conversacion`        | Conversación privada o grupal (familiar) | `id_conversacion` int      | FK `familia` SET_NULL; → `integrantes`, `mensaje` | Partial UNIQUE `fk_familia WHERE estado AND fk_familia IS NOT NULL`; `tipo` bool (false=privada, true=grupal) | F4–F5; Ch1    | L; **E**              | **S3**               |
+| `integrantes`         | Membresía en conversación                | `id_miembro` int           | FK CASCADE hacia `usuario` y `conversacion`       | UNIQUE `(fk_usuario, fk_conversacion)`; `rol` miembro/admin                                                   | F4            | L; **E**              | **S3**               |
+| `mensaje`             | Mensaje                                  | `id_mensaje` int           | FK `conversacion` CASCADE; FK `emisor` SET_NULL   | `contenido` nullable (mensajes solo-imagen); `leido`, `editado` bool; soft-delete con ventana 15 min          | Ch2–Ch3; F-22 | L; **E**              | **S3**               |
+| `documento`           | Adjunto (referencia a archivo)           | `id_documento` int         | FK `usuario` SET_NULL; → `mensajes_documentos`    | `tipo_documento` varchar(50) sin CHECK (datos: imagen/audio)                                                  | Ch4; F-24     | L; subida solo-online | **S3** (referencias) |
+| `mensajes_documentos` | Adjunto adjuntado a mensaje              | `id_mensaje_documento` int | FK CASCADE hacia `mensaje` y `documento`          | UNIQUE `(fk_mensaje, fk_documento)`                                                                           | —             | L                     | **S3**               |
 
 ### 3.7 Sistema
 
-| Tabla | Propósito | PK | Relaciones principales | Restricciones clave | Reglas | Offline | Sync |
-|---|---|---|---|---|---|---|---|
-| `logs` | Bitácora de accesos y operaciones | `id_log` int | FK `usuario` SET_NULL | `ip` tipo **`inet`**; `dispositivo` varchar; append-only server-owned | F-27 | — | **S4** |
-| `auth_*`, `django_*`, `token_blacklist_*` | Identidad de login (contraseñas, JWT), sesiones, contenttypes, migraciones | `id` int (BigAutoField) | `usuario.fk_user` → `auth_user` | Esquema Django/SimpleJWT estándar; **nunca exponer al cliente** | F-01…F-04 | — | **S4** |
+| Tabla                                     | Propósito                                                                  | PK                      | Relaciones principales          | Restricciones clave                                                   | Reglas    | Offline | Sync   |
+| ----------------------------------------- | -------------------------------------------------------------------------- | ----------------------- | ------------------------------- | --------------------------------------------------------------------- | --------- | ------- | ------ |
+| `logs`                                    | Bitácora de accesos y operaciones                                          | `id_log` int            | FK `usuario` SET_NULL           | `ip` tipo **`inet`**; `dispositivo` varchar; append-only server-owned | F-27      | —       | **S4** |
+| `auth_*`, `django_*`, `token_blacklist_*` | Identidad de login (contraseñas, JWT), sesiones, contenttypes, migraciones | `id` int (BigAutoField) | `usuario.fk_user` → `auth_user` | Esquema Django/SimpleJWT estándar; **nunca exponer al cliente**       | F-01…F-04 | —       | **S4** |
 
 ## 4. Relaciones e integridad
 
@@ -151,24 +151,24 @@ Preservar las relaciones del dominio original que sean correctas. Referencia com
 
 ### 4.2 Restricciones UNIQUE (inventario observado en la BD entregada — CONFIRMADO)
 
-| Tabla | Restricción | Forma en BD entregada |
-|---|---|---|
-| `roles` | `nombre_rol` | UNIQUE (constraint) |
-| `estado_pedido` | `tipo_estado` | UNIQUE (constraint) |
-| `tipo_pago` | `nombre` | UNIQUE (constraint) |
-| `usuario` | `correo`, `fk_persona`, `fk_user` | UNIQUE ×3 (1:1 confirmado a nivel BD) |
-| `limite_cliente` | `fk_usuario` | UNIQUE (1:1) |
-| `pago` | `folio`; `fk_pedido` | UNIQUE ×2; `unique_pago_per_pedido` es UNIQUE simple → nulls-distinct por defecto (múltiples NULL permitidos) — la semántica de DA §7.3.1 se cumple **sin** requerir `NULLS NOT DISTINCT`/PG≥15 |
-| `recibo` | `folio` | UNIQUE |
-| `integrantes` | `(fk_usuario, fk_conversacion)` | UNIQUE |
-| `mensajes_documentos` | `(fk_mensaje, fk_documento)` | UNIQUE |
-| `publicacion_semanal` | `(fk_agricultor, semana)` | UNIQUE |
-| `liquidacion` | `(fk_agricultor, periodo_inicio, periodo_fin)` | UNIQUE |
-| `liquidacion_venta` | `(fk_liquidacion, fk_pedido)` | UNIQUE |
-| `conversacion` | familia activa | **Partial unique index** `WHERE estado AND fk_familia IS NOT NULL` |
-| `corte` | vendedor/fecha | **Partial unique index** `WHERE fk_vendedor_id IS NOT NULL` |
-| `producto_imagen` | principal por producto | **Partial unique index** `WHERE es_principal` |
-| `recoleccion` | slot activo | **Partial unique index** `WHERE NOT estado = 'cancelado'` |
+| Tabla                 | Restricción                                    | Forma en BD entregada                                                                                                                                                                           |
+| --------------------- | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `roles`               | `nombre_rol`                                   | UNIQUE (constraint)                                                                                                                                                                             |
+| `estado_pedido`       | `tipo_estado`                                  | UNIQUE (constraint)                                                                                                                                                                             |
+| `tipo_pago`           | `nombre`                                       | UNIQUE (constraint)                                                                                                                                                                             |
+| `usuario`             | `correo`, `fk_persona`, `fk_user`              | UNIQUE ×3 (1:1 confirmado a nivel BD)                                                                                                                                                           |
+| `limite_cliente`      | `fk_usuario`                                   | UNIQUE (1:1)                                                                                                                                                                                    |
+| `pago`                | `folio`; `fk_pedido`                           | UNIQUE ×2; `unique_pago_per_pedido` es UNIQUE simple → nulls-distinct por defecto (múltiples NULL permitidos) — la semántica de DA §7.3.1 se cumple **sin** requerir `NULLS NOT DISTINCT`/PG≥15 |
+| `recibo`              | `folio`                                        | UNIQUE                                                                                                                                                                                          |
+| `integrantes`         | `(fk_usuario, fk_conversacion)`                | UNIQUE                                                                                                                                                                                          |
+| `mensajes_documentos` | `(fk_mensaje, fk_documento)`                   | UNIQUE                                                                                                                                                                                          |
+| `publicacion_semanal` | `(fk_agricultor, semana)`                      | UNIQUE                                                                                                                                                                                          |
+| `liquidacion`         | `(fk_agricultor, periodo_inicio, periodo_fin)` | UNIQUE                                                                                                                                                                                          |
+| `liquidacion_venta`   | `(fk_liquidacion, fk_pedido)`                  | UNIQUE                                                                                                                                                                                          |
+| `conversacion`        | familia activa                                 | **Partial unique index** `WHERE estado AND fk_familia IS NOT NULL`                                                                                                                              |
+| `corte`               | vendedor/fecha                                 | **Partial unique index** `WHERE fk_vendedor_id IS NOT NULL`                                                                                                                                     |
+| `producto_imagen`     | principal por producto                         | **Partial unique index** `WHERE es_principal`                                                                                                                                                   |
+| `recoleccion`         | slot activo                                    | **Partial unique index** `WHERE NOT estado = 'cancelado'`                                                                                                                                       |
 
 Las 4 parciales se materializan como **índices únicos con predicado** (no como constraints de tabla): Prisma no puede expresarlas → viven como snippet SQL de migración (F-07; ya asentado en `architecture.md` §2).
 
@@ -213,16 +213,16 @@ El modelo PostgreSQL debe poder representarse correctamente en Prisma. Base conc
 
 ### 5.1 Tipos de datos
 
-| Tipo en BD entregada | Prisma | Nota |
-|---|---|---|
-| `integer` (PKs, FKs, stock, cantidad) | `Int` | Directo; ver §5.3 para estrategia de identificadores |
-| `numeric(10,2)`, `numeric(5,4)` | `Decimal @db.Decimal(10,2)` / `(5,4)` | Dinero como `Decimal`; serializar a string hacia RxDB (F-29) |
-| `timestamptz` | `DateTime @db.Timestamptz(6)` | `creado_en` sin default en BD (CONFIRMADO): los defaults de Django son app-level |
-| `date` | `DateTime @db.Date` | Semántica de día depende de TZ — D-6 |
-| `time` (`recoleccion.hora_inicio/fin`) | `DateTime @db.Time` | Prisma lo soporta como atributo nativo; en runtime devuelve `DateTime` anclado — gotcha a documentar en el código |
-| `varchar(n)`, `text` | `String @db.VarChar(n)` / `String` | Estados varchar con choices app-level (sin enums PG) |
-| `boolean` | `Boolean` | Soft-delete `estado` |
-| **`inet`** (`logs.ip`) | **Sin equivalente** | Prisma no tiene tipo nativo `inet` → M-7 |
+| Tipo en BD entregada                   | Prisma                                | Nota                                                                                                              |
+| -------------------------------------- | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `integer` (PKs, FKs, stock, cantidad)  | `Int`                                 | Directo; ver §5.3 para estrategia de identificadores                                                              |
+| `numeric(10,2)`, `numeric(5,4)`        | `Decimal @db.Decimal(10,2)` / `(5,4)` | Dinero como `Decimal`; serializar a string hacia RxDB (F-29)                                                      |
+| `timestamptz`                          | `DateTime @db.Timestamptz(6)`         | `creado_en` sin default en BD (CONFIRMADO): los defaults de Django son app-level                                  |
+| `date`                                 | `DateTime @db.Date`                   | Semántica de día depende de TZ — D-6                                                                              |
+| `time` (`recoleccion.hora_inicio/fin`) | `DateTime @db.Time`                   | Prisma lo soporta como atributo nativo; en runtime devuelve `DateTime` anclado — gotcha a documentar en el código |
+| `varchar(n)`, `text`                   | `String @db.VarChar(n)` / `String`    | Estados varchar con choices app-level (sin enums PG)                                                              |
+| `boolean`                              | `Boolean`                             | Soft-delete `estado`                                                                                              |
+| **`inet`** (`logs.ip`)                 | **Sin equivalente**                   | Prisma no tiene tipo nativo `inet` → M-7                                                                          |
 
 ### 5.2 Restricciones e índices que Prisma no puede expresar
 
@@ -261,34 +261,34 @@ Las colecciones locales se diseñan según necesidades reales. **Este §6 es la 
 
 ### 6.2 Mapa de colecciones
 
-| Colección RxDB | Tabla(s) fuente | Clase | Ámbito de datos (scoping) | Escritura offline | Tombstone / soft-delete |
-|---|---|---|---|---|---|
-| `roles` | `roles` | S1 | global (todos los usuarios) | No | `estado=false → _deleted` |
-| `categorias` | `categoria_producto` | S1 | global | No | idem |
-| `unidades` | `unidad` | S1 | global | No | idem |
-| `decisiones_merma` | `decision_merma` | S1 | global | No | idem |
-| `estados_pedido` | `estado_pedido` | S1 | global | No | sin soft-delete (tabla pequeña; PULL completo) |
-| `tipos_pago` | `tipo_pago` | S1 | global | No | sin soft-delete |
-| `municipios` | `municipio` | S1 | global | No | `estado=false → _deleted` (trash/restore propagable) |
-| `localidades` | `localidad` | S1 | global | No | idem |
-| `usuarios` | `usuario` (+ `persona`) | S1 | usuarios visibles para el rol (miembros de la familia propia, vendedores/agricultores según rol); perfil propio editable online | No (perfil via S4) | `estado=false → _deleted` |
-| `familias` | `familia`, `familia_usuario` | S1 | la(s) familia(s) del usuario; admin: todas | No | `estado=false → _deleted` (membresía físicamente eliminada → documento eliminado con tombstone) |
-| `limite_cliente` | `limite_cliente` | S1 | propio; vendedor: límites de sus clientes (B6 es server-side; lectura informativa) | No | sin soft-delete |
-| `productos` | `producto` (+ refs de `producto_imagen`) | S1 | catálogo activo global; agricultor: propios | **Pendiente Q-19** (quién puede escribir) | `estado=false → _deleted` |
-| `producto_imagenes` | `producto_imagen` | S1 (referencias) | junto a `productos` | No (subida binaria online; D-1) | `eliminar_pendiente=true` es estado interno del servidor: **no** replicar al cliente como tombstone |
-| `publicaciones` | `publicacion_semanal`, `producto_semanal` | S2 | comprador: `publicado` de la semana activa; agricultor: propias (todas sus semanas) | Borrador local condicionado (Pu1/Pu4: ventana Monday + validación server al publicar) | lifecycle varchar (borrador→cancelado): **no** hay hard delete legacy; no usar `_deleted` salvo soft-delete futuro |
-| `pedidos` | `pedido_cabecera`, `detalle_pedido` | S2 | cliente: propios; vendedor: propios (como vendedor); admin: todos | **Sí** (creación en cola; stock/crédito/estado validados y adjudicados en el servidor; PUSH idempotente por doc-id) | sin soft-delete legacy; `cancelado` es valor de estado, no tombstone |
-| `pagos` | `pago` | S2 | cliente/vendedor: los propios; admin: todos | No (folio e invariante monto=total server-side, P4/F-05) | sin soft-delete |
-| `recibos` | `recibo` | S1 | junto a `pagos` | No | sin soft-delete (sujeto a D-5) |
-| `mermas` | `merma` | S2 | vendedor: propias; admin: todas | No (decremento de stock server-side, M1) | `estado=false → _deleted` |
-| `recoleccion` | `recoleccion` | S2 | agricultor: propias; vendedor/admin: agenda | No (R1 uniqueness adjudicada en servidor) | lifecycle varchar; `cancelado` no es tombstone |
-| `cortes` | `corte` | S2 | vendedor: propios; admin: todos | No (`monto_teorico` depende de pagos del servidor, C1/C3) | lifecycle varchar |
-| `liquidaciones` | `liquidacion`, `liquidacion_venta` | S2 | **solo admin** | No (L1–L9 centralizadas) | lifecycle varchar |
-| `historial_pedidos` | `historial_estado_pedido` | S1 (derivada) | junto a `pedidos` | No (server-owned, append-only) | no aplica |
-| `historial_recoleccion` | `historial_estado_recoleccion` | S1 (derivada) | junto a `recoleccion` | No | no aplica |
-| `conversaciones` | `conversacion`, `integrantes` | **S3** | conversaciones donde el usuario es integrante | **Sí** (crear/activar; reglas F4/F5/Ch1 validadas al sincronizar) | `estado=false → _deleted` |
-| `mensajes` | `mensaje`, `mensajes_documentos`, `documento` (refs) | **S3** | junto a `conversaciones` | **Sí** (envío en cola; ventana 15 min de edición/borrado validada server; `leido` multi-dispositivo = superficie de conflicto) | `estado=false → _deleted` (borrado lógico "inactivar") |
-| `logs`, `auth_*`, `token_blacklist_*`, `django_*` | — | **S4** | **Nunca en cliente** (contraseñas, JWT, telemetría) | No | no aplica |
+| Colección RxDB                                    | Tabla(s) fuente                                      | Clase            | Ámbito de datos (scoping)                                                                                                       | Escritura offline                                                                                                              | Tombstone / soft-delete                                                                                            |
+| ------------------------------------------------- | ---------------------------------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| `roles`                                           | `roles`                                              | S1               | global (todos los usuarios)                                                                                                     | No                                                                                                                             | `estado=false → _deleted`                                                                                          |
+| `categorias`                                      | `categoria_producto`                                 | S1               | global                                                                                                                          | No                                                                                                                             | idem                                                                                                               |
+| `unidades`                                        | `unidad`                                             | S1               | global                                                                                                                          | No                                                                                                                             | idem                                                                                                               |
+| `decisiones_merma`                                | `decision_merma`                                     | S1               | global                                                                                                                          | No                                                                                                                             | idem                                                                                                               |
+| `estados_pedido`                                  | `estado_pedido`                                      | S1               | global                                                                                                                          | No                                                                                                                             | sin soft-delete (tabla pequeña; PULL completo)                                                                     |
+| `tipos_pago`                                      | `tipo_pago`                                          | S1               | global                                                                                                                          | No                                                                                                                             | sin soft-delete                                                                                                    |
+| `municipios`                                      | `municipio`                                          | S1               | global                                                                                                                          | No                                                                                                                             | `estado=false → _deleted` (trash/restore propagable)                                                               |
+| `localidades`                                     | `localidad`                                          | S1               | global                                                                                                                          | No                                                                                                                             | idem                                                                                                               |
+| `usuarios`                                        | `usuario` (+ `persona`)                              | S1               | usuarios visibles para el rol (miembros de la familia propia, vendedores/agricultores según rol); perfil propio editable online | No (perfil via S4)                                                                                                             | `estado=false → _deleted`                                                                                          |
+| `familias`                                        | `familia`, `familia_usuario`                         | S1               | la(s) familia(s) del usuario; admin: todas                                                                                      | No                                                                                                                             | `estado=false → _deleted` (membresía físicamente eliminada → documento eliminado con tombstone)                    |
+| `limite_cliente`                                  | `limite_cliente`                                     | S1               | propio; vendedor: límites de sus clientes (B6 es server-side; lectura informativa)                                              | No                                                                                                                             | sin soft-delete                                                                                                    |
+| `productos`                                       | `producto` (+ refs de `producto_imagen`)             | S1               | catálogo activo global; agricultor: propios                                                                                     | **Pendiente Q-19** (quién puede escribir)                                                                                      | `estado=false → _deleted`                                                                                          |
+| `producto_imagenes`                               | `producto_imagen`                                    | S1 (referencias) | junto a `productos`                                                                                                             | No (subida binaria online; D-1)                                                                                                | `eliminar_pendiente=true` es estado interno del servidor: **no** replicar al cliente como tombstone                |
+| `publicaciones`                                   | `publicacion_semanal`, `producto_semanal`            | S2               | comprador: `publicado` de la semana activa; agricultor: propias (todas sus semanas)                                             | Borrador local condicionado (Pu1/Pu4: ventana Monday + validación server al publicar)                                          | lifecycle varchar (borrador→cancelado): **no** hay hard delete legacy; no usar `_deleted` salvo soft-delete futuro |
+| `pedidos`                                         | `pedido_cabecera`, `detalle_pedido`                  | S2               | cliente: propios; vendedor: propios (como vendedor); admin: todos                                                               | **Sí** (creación en cola; stock/crédito/estado validados y adjudicados en el servidor; PUSH idempotente por doc-id)            | sin soft-delete legacy; `cancelado` es valor de estado, no tombstone                                               |
+| `pagos`                                           | `pago`                                               | S2               | cliente/vendedor: los propios; admin: todos                                                                                     | No (folio e invariante monto=total server-side, P4/F-05)                                                                       | sin soft-delete                                                                                                    |
+| `recibos`                                         | `recibo`                                             | S1               | junto a `pagos`                                                                                                                 | No                                                                                                                             | sin soft-delete (sujeto a D-5)                                                                                     |
+| `mermas`                                          | `merma`                                              | S2               | vendedor: propias; admin: todas                                                                                                 | No (decremento de stock server-side, M1)                                                                                       | `estado=false → _deleted`                                                                                          |
+| `recoleccion`                                     | `recoleccion`                                        | S2               | agricultor: propias; vendedor/admin: agenda                                                                                     | No (R1 uniqueness adjudicada en servidor)                                                                                      | lifecycle varchar; `cancelado` no es tombstone                                                                     |
+| `cortes`                                          | `corte`                                              | S2               | vendedor: propios; admin: todos                                                                                                 | No (`monto_teorico` depende de pagos del servidor, C1/C3)                                                                      | lifecycle varchar                                                                                                  |
+| `liquidaciones`                                   | `liquidacion`, `liquidacion_venta`                   | S2               | **solo admin**                                                                                                                  | No (L1–L9 centralizadas)                                                                                                       | lifecycle varchar                                                                                                  |
+| `historial_pedidos`                               | `historial_estado_pedido`                            | S1 (derivada)    | junto a `pedidos`                                                                                                               | No (server-owned, append-only)                                                                                                 | no aplica                                                                                                          |
+| `historial_recoleccion`                           | `historial_estado_recoleccion`                       | S1 (derivada)    | junto a `recoleccion`                                                                                                           | No                                                                                                                             | no aplica                                                                                                          |
+| `conversaciones`                                  | `conversacion`, `integrantes`                        | **S3**           | conversaciones donde el usuario es integrante                                                                                   | **Sí** (crear/activar; reglas F4/F5/Ch1 validadas al sincronizar)                                                              | `estado=false → _deleted`                                                                                          |
+| `mensajes`                                        | `mensaje`, `mensajes_documentos`, `documento` (refs) | **S3**           | junto a `conversaciones`                                                                                                        | **Sí** (envío en cola; ventana 15 min de edición/borrado validada server; `leido` multi-dispositivo = superficie de conflicto) | `estado=false → _deleted` (borrado lógico "inactivar")                                                             |
+| `logs`, `auth_*`, `token_blacklist_*`, `django_*` | —                                                    | **S4**           | **Nunca en cliente** (contraseñas, JWT, telemetría)                                                                             | No                                                                                                                             | no aplica                                                                                                          |
 
 ### 6.3 Transformación documento ↔ fila (normativa para el protocolo)
 
@@ -309,6 +309,7 @@ Preferir modificaciones mínimas y compatibles. No modificar el esquema por conv
 ### 7.1 Registro de modificaciones propuestas
 
 **M-1a — Tabla de registro de cambios `sync_cambio` (outbox transaccional)**
+
 1. Problema: no existe cursor de cambio incremental; el PULL offline-first no puede detectar qué filas entregar (y `docs/synchronization.md` §4 lo exige).
 2. Tabla afectada: nueva tabla `sync_cambio` (id `bigserial` PK monótono, tabla_origen, id_fila (uuid), operacion (insert/update/delete), actor usuario, creado_en).
 3. Cambio: una sola tabla append-only, escrita en la misma transacción que cada mutación de negocio (patrón outbox).
@@ -317,9 +318,10 @@ Preferir modificaciones mínimas y compatibles. No modificar el esquema por conv
 6. Impacto relacional: ninguno (sin FKs duras hacia negocio; `id_fila` como referencia lógica).
 7. Impacto Prisma: modelable; `bigserial` = `BigInt @default(autoincrement())`.
 8. Impacto RxDB/sync: es el fundamento del checkpoint PULL (§6.3.9); el worker de sincronización la consume.
-**Estado: PROPUESTA (a — requerida por offline-first).**
+   **Estado: PROPUESTA (a — requerida por offline-first).**
 
 **M-1b — Columna `actualizado_en` en tablas sincronizables**
+
 1. Problema: ninguna tabla tiene `actualizado_en`; `municipio`/`localidad` carecen incluso de `creado_en`.
 2. Tablas afectadas: las colecciones S1/S2/S3 (§6.2).
 3. Cambio: `actualizado_en timestamptz NOT NULL DEFAULT now()`, mantenida por la app (Prisma `@updatedAt`) y por el outbox al propagar.
@@ -330,6 +332,7 @@ Preferir modificaciones mínimas y compatibles. No modificar el esquema por conv
 8. Impacto RxDB/sync: agiliza PULL por ventana; el cursor autoritativo sigue siendo `sync_cambio.id`.
 
 **M-2 — Invariantes financieras como CHECK de una sola fila**
+
 1. Problema: invariantes solo en app (F-05); la BD entregada demuestra que se saltan (§4.6).
 2. Tablas afectadas: `pedido_cabecera`, `detalle_pedido`, `corte`, `liquidacion`, `producto_semanal`, `pago`, `limite_cliente`.
 3. Cambio: CHECKs aditivos: `total = subtotal + iva`; `importe = precio_unitario * cantidad`; `diferencia = monto_real - monto_teorico`; `monto_liquidar = monto_ventas - comision`; `monto > 0` (pago); `monto >= 0` (limite_cliente); `precio > 0` (producto_semanal). **No** se codifica la tasa de IVA (D-3). Sobre `detalle_pedido`: endurecer `cantidad >= 0` (auto Django) a `> 0`.
@@ -338,9 +341,10 @@ Preferir modificaciones mínimas y compatibles. No modificar el esquema por conv
 6. Impacto relacional: ninguno (single-row).
 7. Impacto Prisma: no expresable → snippet SQL de migración (§5.2).
 8. Impacto RxDB/sync: el PUSH rechaza documentos que violen; la cola local debe pre-validar las mismas fórmulas.
-**Estado: PROPUESTA (b — requiere defectos F-05/F-06) y por tratarse de constraints financieras: PENDIENTE DE DECISIÓN (usuario).**
+   **Estado: PROPUESTA (b — requiere defectos F-05/F-06) y por tratarse de constraints financieras: PENDIENTE DE DECISIÓN (usuario).**
 
 **M-3 — Estrategia de identificadores UUID (P-1, §5.3)**
+
 1. Problema: PKs enteras secuenciales no permiten crear documentos offline con identidad estable (requisito RxDB).
 2. Tablas afectadas: las 34 de negocio (PKs y FKs).
 3. Cambio: PK `String` UUID v4 + `legacy_id Int? @unique` para importación.
@@ -351,6 +355,7 @@ Preferir modificaciones mínimas y compatibles. No modificar el esquema por conv
 8. Impacto RxDB/sync: elimina la resolución doble de ids; doc id = PK.
 
 **M-4 — CHECKs de dominio no financieros y regla de familia activa**
+
 1. Problema: dominios varchar sin CHECK (F-08); "una familia activa por usuario" solo en serializador (F-09).
 2. Tablas afectadas: `persona` (sexo IN ('M','F','O')), `producto_semanal` (estado IN ('activo','inactivo')), `publicacion_semanal` (4 valores), `corte` (3), `liquidacion` (3), `recoleccion` (4), `documento` (tipo IN ('imagen','audio','video')), `integrantes` (rol IN ('miembro','admin')); partial unique en `familia_usuario (fk_usuario) WHERE estado`.
 3. Cambio: CHECKs aditivos con los valores exactos de DA §6 + partial unique.
@@ -359,14 +364,16 @@ Preferir modificaciones mínimas y compatibles. No modificar el esquema por conv
 6. Impacto relacional: ninguno.
 7. Impacto Prisma: snippets SQL (§5.2).
 8. Impacto RxDB/sync: el PUSH rechaza valores fuera de dominio; el schema local de RxDB debe espejar los mismos dominios.
-**Estado: PROPUESTA (b).**
+   **Estado: PROPUESTA (b).**
 
 **M-5 — Índices de rutas calientes**
+
 1. Problema: filtros/órdenes usados por listados sin índice (DA §9.10, Q-26).
 2. Tablas: `mensaje (fk_conversacion, creado_en)`, `recoleccion (fecha_recoleccion)`, `pago (creado_en)`, `merma (creado_en)`, `logs (creado_en)`, `producto (estado, fk_categoria)`.
-3–8: índices aditivos, sin impacto en datos ni relaciones; expresables en Prisma (`@@index`); mejoran PULL filtrado por colección. **Estado: PROPUESTA (a/b).**
+   3–8: índices aditivos, sin impacto en datos ni relaciones; expresables en Prisma (`@@index`); mejoran PULL filtrado por colección. **Estado: PROPUESTA (a/b).**
 
 **M-6 — Alinear `merma.fk_pedido` al estado del modelo auditado (0027)**
+
 1. Problema: la BD entregada está una migración atrás: `merma.fk_pedido` (PROTECT, related `mermas`) no existe, aunque el modelo auditado (DA §2) sí lo declara.
 2. Tabla: `merma`.
 3. Cambio: incluir `fk_pedido → pedido_cabecera` con `onDelete: Restrict` en el nuevo esquema.
@@ -375,9 +382,10 @@ Preferir modificaciones mínimas y compatibles. No modificar el esquema por conv
 6. Impacto relacional: PROTECT real a nivel BD (mejora vs BD entregada, donde ni la FK existe).
 7. Impacto Prisma: directo.
 8. Impacto RxDB/sync: campo adicional en colección `mermas`.
-**Estado: PROPUESTA (alineación con el modelo auditado; el orden de fuentes §2 da la prioridad a la BD entregada en estructura, pero la semántica de negocio del audit gana — se resuelve adoptando 0027).**
+   **Estado: PROPUESTA (alineación con el modelo auditado; el orden de fuentes §2 da la prioridad a la BD entregada en estructura, pero la semántica de negocio del audit gana — se resuelve adoptando 0027).**
 
 **M-7 — `logs.ip`: `inet` → `varchar(45)`**
+
 1. Problema: Prisma no tiene tipo `inet` (§5.1).
 2. Tabla: `logs` (S4, server-only).
 3. Cambio: `ip varchar(45)` (IPv4/IPv6 completo) modelada como `String @db.VarChar(45)`.
@@ -386,7 +394,7 @@ Preferir modificaciones mínimas y compatibles. No modificar el esquema por conv
 6. Impacto relacional: ninguno.
 7. Impacto Prisma: directo.
 8. Impacto RxDB/sync: ninguno (S4).
-**Estado: PROPUESTA (b — compatibilidad ORM).**
+   **Estado: PROPUESTA (b — compatibilidad ORM).**
 
 ### 7.2 Cambios explícitamente NO adoptados
 
@@ -400,16 +408,16 @@ Preferir modificaciones mínimas y compatibles. No modificar el esquema por conv
 
 Continúan la numeración de `docs/architecture.md` §11 (D-1 existe ahí).
 
-| # | Decisión | Contexto | Opciones |
-|---|---|---|---|
-| D-2 | Estrategia de identificadores (M-3) | Importación y FKs | UUID PK + `legacy_id` (propuesta) vs `Int` PK + `uuid` paralelo |
-| D-3 | **Tasa de IVA: 16% (datos entregados) vs 21% (regla B5/audit)** | Contradicción nueva descubierta en la BD entregada (§4.6); refuerza Q-14 (redondeo) | Fijar tasa y redondeo; solo entonces decidir si se codifica en CHECK |
-| D-4 | `estado_pedido.activo` (id 7): conservar, usar ("apartado") o eliminar | Q-18; fila sembrada sin uso | |
-| D-5 | `recibo`: producto vivo o esquema muerto | Q-09; sin escritor de API; 4 filas de semilla | |
-| D-6 | Zona horaria para columnas `date` (`corte.fecha`, `recoleccion.fecha_recoleccion`, publicaciones) | F-25/Q-22: locale es-ar vs geografía Nayarit, México | |
-| D-7 | Backfill `actualizado_en` (M-1b) | Afecta filas importadas | Aceptar backfill vs `NULL` inicial |
-| D-8 | Enums PG nativos vs `varchar` + CHECK (M-4) | §5.4 | (a) varchar+CHECK (recomendada) vs (b) enum PG |
-| D-9 | Colección/escritura de `producto` por agricultor | Q-19/F-17 (rol del CRUD de productos) | Define scoping y permisos de la colección `productos` (§6.2) |
+| #   | Decisión                                                                                          | Contexto                                                                            | Opciones                                                             |
+| --- | ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| D-2 | Estrategia de identificadores (M-3)                                                               | Importación y FKs                                                                   | UUID PK + `legacy_id` (propuesta) vs `Int` PK + `uuid` paralelo      |
+| D-3 | **Tasa de IVA: 16% (datos entregados) vs 21% (regla B5/audit)**                                   | Contradicción nueva descubierta en la BD entregada (§4.6); refuerza Q-14 (redondeo) | Fijar tasa y redondeo; solo entonces decidir si se codifica en CHECK |
+| D-4 | `estado_pedido.activo` (id 7): conservar, usar ("apartado") o eliminar                            | Q-18; fila sembrada sin uso                                                         |                                                                      |
+| D-5 | `recibo`: producto vivo o esquema muerto                                                          | Q-09; sin escritor de API; 4 filas de semilla                                       |                                                                      |
+| D-6 | Zona horaria para columnas `date` (`corte.fecha`, `recoleccion.fecha_recoleccion`, publicaciones) | F-25/Q-22: locale es-ar vs geografía Nayarit, México                                |                                                                      |
+| D-7 | Backfill `actualizado_en` (M-1b)                                                                  | Afecta filas importadas                                                             | Aceptar backfill vs `NULL` inicial                                   |
+| D-8 | Enums PG nativos vs `varchar` + CHECK (M-4)                                                       | §5.4                                                                                | (a) varchar+CHECK (recomendada) vs (b) enum PG                       |
+| D-9 | Colección/escritura de `producto` por agricultor                                                  | Q-19/F-17 (rol del CRUD de productos)                                               | Define scoping y permisos de la colección `productos` (§6.2)         |
 
 ## 8. Resultado esperado
 

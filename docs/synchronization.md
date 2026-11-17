@@ -10,14 +10,14 @@ Este documento define el protocolo de sincronización **concreto e implementable
 
 ## 2. Tecnologías
 
-| Componente | Tecnología | Import / ruta exacta |
-| --- | --- | --- |
-| Base local | RxDB | `createRxDatabase` (`rxdb/plugins/core`) |
-| Storage local | Dexie sobre IndexedDB (gratuito, Apache-2.0) | `getRxStorageDexie` desde `rxdb/plugins/storage-dexie` |
-| Replicación | Protocolo de replicación de RxDB | `replicateRxCollection` desde `rxdb/plugins/replication` |
-| Transporte | tRPC sobre `Bun.serve` con `@hono/trpc-server` | `apps/server` |
-| Acceso relacional | Prisma 7 + `@prisma/adapter-pg` | `packages/db` |
-| Fuente de verdad | PostgreSQL (Supabase) | — |
+| Componente        | Tecnología                                     | Import / ruta exacta                                     |
+| ----------------- | ---------------------------------------------- | -------------------------------------------------------- |
+| Base local        | RxDB                                           | `createRxDatabase` (`rxdb/plugins/core`)                 |
+| Storage local     | Dexie sobre IndexedDB (gratuito, Apache-2.0)   | `getRxStorageDexie` desde `rxdb/plugins/storage-dexie`   |
+| Replicación       | Protocolo de replicación de RxDB               | `replicateRxCollection` desde `rxdb/plugins/replication` |
+| Transporte        | tRPC sobre `Bun.serve` con `@hono/trpc-server` | `apps/server`                                            |
+| Acceso relacional | Prisma 7 + `@prisma/adapter-pg`                | `packages/db`                                            |
+| Fuente de verdad  | PostgreSQL (Supabase)                          | —                                                        |
 
 No utilizar PowerSync, ningún servicio externo de sincronización ni plugins premium de RxDB (`rxdb-premium/*` queda descartado; el storage "IndexedDB" premium no se usa — `docs/architecture.md` §2).
 
@@ -47,16 +47,16 @@ La replicación pasa siempre por el backend. El cliente nunca accede directament
 
 ### 3.1 Inventario de componentes
 
-| Componente | Ubicación | Responsabilidad |
-| --- | --- | --- |
-| Módulo de base local | `apps/web` — `src/db/` | `createRxDatabase` con `getRxStorageDexie`; registro de colecciones con schemas y `conflictHandler` por clase (§6). |
-| Gestor de replicación | `apps/web` — `src/sync/` | Una función por colección que llama `replicateRxCollection` con handlers PULL/PUSH propios; encapsula el mapeo documento↔contrato tRPC. |
-| Controlador de sincronización | `apps/web` — `src/sync/controller.ts` | Arranca/detiene las replicaciones al iniciar sesión, cerrarla o cambiar de usuario (§11); expone `active$`/`error$` como indicadores de UI. |
-| tRPC client | `apps/web` | Transporte autenticado (JWT) de los handlers. |
-| Router de sincronización | `apps/server` — `syncRouter` | Procedimientos `pull`/`push` por colección, generados por una fábrica común (`makePullProcedure(colección)` / `makePushProcedure(colección)`) con esquemas zod por colección. Valida sesión, permisos y ámbito por petición. |
-| Registro de colecciones del servidor | `apps/server` | Mapa declarativo `colección → tablas, filtros de ámbito (database.md §6.2), reglas de validación`; única fuente del `syncRouter`. |
-| Outbox transaccional | PostgreSQL — `sync_cambio` | M-1a (`docs/database.md` §7.1): fila append-only escrita en la **misma transacción** que cada mutación de negocio. Fundamento del checkpoint PULL. |
-| Registro de idempotencia | PostgreSQL — `sync_operacion` | §7 de este documento: verdicto por operación PUSH, escrito transaccionalmente con el efecto. |
+| Componente                           | Ubicación                             | Responsabilidad                                                                                                                                                                                                              |
+| ------------------------------------ | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Módulo de base local                 | `apps/web` — `src/db/`                | `createRxDatabase` con `getRxStorageDexie`; registro de colecciones con schemas y `conflictHandler` por clase (§6).                                                                                                          |
+| Gestor de replicación                | `apps/web` — `src/sync/`              | Una función por colección que llama `replicateRxCollection` con handlers PULL/PUSH propios; encapsula el mapeo documento↔contrato tRPC.                                                                                      |
+| Controlador de sincronización        | `apps/web` — `src/sync/controller.ts` | Arranca/detiene las replicaciones al iniciar sesión, cerrarla o cambiar de usuario (§11); expone `active$`/`error$` como indicadores de UI.                                                                                  |
+| tRPC client                          | `apps/web`                            | Transporte autenticado (JWT) de los handlers.                                                                                                                                                                                |
+| Router de sincronización             | `apps/server` — `syncRouter`          | Procedimientos `pull`/`push` por colección, generados por una fábrica común (`makePullProcedure(colección)` / `makePushProcedure(colección)`) con esquemas zod por colección. Valida sesión, permisos y ámbito por petición. |
+| Registro de colecciones del servidor | `apps/server`                         | Mapa declarativo `colección → tablas, filtros de ámbito (database.md §6.2), reglas de validación`; única fuente del `syncRouter`.                                                                                            |
+| Outbox transaccional                 | PostgreSQL — `sync_cambio`            | M-1a (`docs/database.md` §7.1): fila append-only escrita en la **misma transacción** que cada mutación de negocio. Fundamento del checkpoint PULL.                                                                           |
+| Registro de idempotencia             | PostgreSQL — `sync_operacion`         | §7 de este documento: verdicto por operación PUSH, escrito transaccionalmente con el efecto.                                                                                                                                 |
 
 ### 3.2 Flujo (secuencia)
 
@@ -154,12 +154,12 @@ Nota: las primitivas de concurrencia PostgreSQL (advisory locks para folios, `SE
 
 No aplicar Last Write Wins globalmente. El `conflictHandler` (contrato verificado §2.1) se define **por colección** según su clase de `docs/database.md` §6:
 
-| Clase | Colecciones (clase de database.md §6) | Política de conflicto | `conflictHandler` |
-| --- | --- | --- | --- |
-| S1 — catálogos | `municipios`, `localidades`, `categorias`, `unidades`, `roles`, `usuarios`, `familias`, etc. | Prevalece la información central. Sin push de cliente en producción (§5). | `(i) => ({ documentData: i.realMasterState })` — server-wins incondicional. |
-| S2 — transaccional | `pedidos`, `pagos`, `mermas`, `recoleccion`, `cortes`, `liquidaciones`, `publicaciones` | El servidor es autoritativo: valida stock/crédito/estados y adjudica (folios, unicidad de slot, recálculos). El dinero y el inventario **no** se escriben como documento crudo: se aplican como operaciones validadas (§9, carril de confirmación online). | Server-wins: el cliente adopta `realMasterState`; el estado local rechazado queda preservado en `sync_operacion` (ambos estados) para revisión. |
-| S3 — eventual (chat) | `conversaciones`, `mensajes` | Bidireccional de alta frecuencia; superficie de conflicto: `leido`, `editado`, ventana de 15 min. Resolución por reglas de dominio en el servidor; los conflictos no auto-resolubles se conservan. | Fusión mínima: campos server-owned (`leido`) toman `realMasterState`; el resto se resuelve server-side; artefacto de revisión en `sync_operacion`. |
-| Perfil | `usuarios` (campos propios) | Validación del servidor; edición online (S4 en database.md §6.2). | No aplica (sin push local). |
+| Clase                | Colecciones (clase de database.md §6)                                                        | Política de conflicto                                                                                                                                                                                                                                      | `conflictHandler`                                                                                                                                  |
+| -------------------- | -------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S1 — catálogos       | `municipios`, `localidades`, `categorias`, `unidades`, `roles`, `usuarios`, `familias`, etc. | Prevalece la información central. Sin push de cliente en producción (§5).                                                                                                                                                                                  | `(i) => ({ documentData: i.realMasterState })` — server-wins incondicional.                                                                        |
+| S2 — transaccional   | `pedidos`, `pagos`, `mermas`, `recoleccion`, `cortes`, `liquidaciones`, `publicaciones`      | El servidor es autoritativo: valida stock/crédito/estados y adjudica (folios, unicidad de slot, recálculos). El dinero y el inventario **no** se escriben como documento crudo: se aplican como operaciones validadas (§9, carril de confirmación online). | Server-wins: el cliente adopta `realMasterState`; el estado local rechazado queda preservado en `sync_operacion` (ambos estados) para revisión.    |
+| S3 — eventual (chat) | `conversaciones`, `mensajes`                                                                 | Bidireccional de alta frecuencia; superficie de conflicto: `leido`, `editado`, ventana de 15 min. Resolución por reglas de dominio en el servidor; los conflictos no auto-resolubles se conservan.                                                         | Fusión mínima: campos server-owned (`leido`) toman `realMasterState`; el resto se resuelve server-side; artefacto de revisión en `sync_operacion`. |
+| Perfil               | `usuarios` (campos propios)                                                                  | Validación del servidor; edición online (S4 en database.md §6.2).                                                                                                                                                                                          | No aplica (sin push local).                                                                                                                        |
 
 - Los conflictos que no puedan resolverse automáticamente **conservan ambos estados** (`nuevoEstado` del cliente, `estadoServidor` real) en la fila `sync_operacion` correspondiente: nada se descarta sin rastro.
 - Ningún conflicto se resuelve comparando timestamps de cliente (misma razón que §4.2).
@@ -177,12 +177,12 @@ Las operaciones PUSH deben soportar reintentos. La repetición de una solicitud 
 
 Utilizar tombstones para propagar eliminaciones; distinguir la eliminación técnica de replicación de la de negocio.
 
-| Caso | Servidor | RxDB |
-| --- | --- | --- |
-| Soft-delete de catálogo (`estado=false`) en tablas con boolean | fila conservada; outbox `operacion='update'`; transform emite `_deleted: true` **conservando `estado`** (database.md §6.3.5) | documento con `_deleted: true`; trash/restore posterior llega como actualización normal (`_deleted: false`) |
-| Lifecycle varchar (`publicacion_semanal`, `recoleccion`, `corte`, `liquidacion`) | el cambio de `estado` es una actualización normal; **nunca** `_deleted` (database.md §6.2) | actualización normal sincronizada |
-| Hard delete (`eliminar-permanente` de catálogos/familias, membresías físicas) | evento server-owned; outbox `operacion='delete'` | `_deleted: true` push-down; el cliente nunca decide borrados físicos |
-| Borrado lógico de negocio con push (p. ej. mensaje dentro de la ventana de 15 min) | validación server de la ventana; soft-delete + outbox | `newDocumentState._deleted = true` en la fila de push (opción `deletedField` no se usa: el servidor ya emite `_deleted`) |
+| Caso                                                                               | Servidor                                                                                                                     | RxDB                                                                                                                     |
+| ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Soft-delete de catálogo (`estado=false`) en tablas con boolean                     | fila conservada; outbox `operacion='update'`; transform emite `_deleted: true` **conservando `estado`** (database.md §6.3.5) | documento con `_deleted: true`; trash/restore posterior llega como actualización normal (`_deleted: false`)              |
+| Lifecycle varchar (`publicacion_semanal`, `recoleccion`, `corte`, `liquidacion`)   | el cambio de `estado` es una actualización normal; **nunca** `_deleted` (database.md §6.2)                                   | actualización normal sincronizada                                                                                        |
+| Hard delete (`eliminar-permanente` de catálogos/familias, membresías físicas)      | evento server-owned; outbox `operacion='delete'`                                                                             | `_deleted: true` push-down; el cliente nunca decide borrados físicos                                                     |
+| Borrado lógico de negocio con push (p. ej. mensaje dentro de la ventana de 15 min) | validación server de la ventana; soft-delete + outbox                                                                        | `newDocumentState._deleted = true` en la fila de push (opción `deletedField` no se usa: el servidor ya emite `_deleted`) |
 
 - La propagación de tombstones viaja por el outbox como cualquier cambio (§4): orden determinista, sin canal aparte.
 - No eliminar físicamente información con historial o integridad asociada (FKs PROTECT — database.md §4.5).
@@ -191,18 +191,18 @@ Utilizar tombstones para propagar eliminaciones; distinguir la eliminación téc
 
 Tres carriles concretos, alineados con `docs/database.md` §6.2 (columna "Escritura offline") y los módulos de `docs/scope.md` §3.1:
 
-| Módulo | Colección | Carril | Canal |
-| --- | --- | --- | --- |
-| Catálogos (municipios, localidades, categorías, unidades, tipos de pago, estados, roles, familias) | S1 | Solo lectura offline (cache-first) | PULL |
-| Perfil y documentos | `usuarios` (propio) | Confirmación online | mutación tRPC + `operationId` |
-| Publicaciones semanales | `publicaciones` | Lectura offline; borrador local condicionado (Pu1/Pu4) — validación server al publicar | PULL; push de borrador: decisión futura (fuera del corte vertical) |
-| Pedidos | `pedidos` | Escritura offline en cola (creación); stock/crédito/estado validados y adjudicados en el servidor | push de replicación (creación) + mutaciones online para transiciones |
-| Pagos y recibos | `pagos`, `recibos` | Confirmación online exclusivamente (folio, invariantes server-side) | mutación tRPC + `operationId` |
-| Recolecciones | `recoleccion` | Confirmación online (unicidad de slot adjudicada en servidor) | mutación tRPC + `operationId` |
-| Cortes, liquidaciones, mermas | `cortes`, `liquidaciones`, `mermas` | Confirmación online / server-owned | mutación tRPC + `operationId` |
-| Chat | `conversaciones`, `mensajes` | Escritura offline en cola (S3 eventual) | push de replicación bidireccional |
-| Imágenes (binarios) | `producto_imagenes`, `documento` | Subida solo-online (D-1); referencias por PULL | mutación tRPC para subida; PULL para referencias |
-| Logs, auth, tokens | — | Solo-online, **nunca en cliente** (S4) | sin colección RxDB |
+| Módulo                                                                                             | Colección                           | Carril                                                                                            | Canal                                                                |
+| -------------------------------------------------------------------------------------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| Catálogos (municipios, localidades, categorías, unidades, tipos de pago, estados, roles, familias) | S1                                  | Solo lectura offline (cache-first)                                                                | PULL                                                                 |
+| Perfil y documentos                                                                                | `usuarios` (propio)                 | Confirmación online                                                                               | mutación tRPC + `operationId`                                        |
+| Publicaciones semanales                                                                            | `publicaciones`                     | Lectura offline; borrador local condicionado (Pu1/Pu4) — validación server al publicar            | PULL; push de borrador: decisión futura (fuera del corte vertical)   |
+| Pedidos                                                                                            | `pedidos`                           | Escritura offline en cola (creación); stock/crédito/estado validados y adjudicados en el servidor | push de replicación (creación) + mutaciones online para transiciones |
+| Pagos y recibos                                                                                    | `pagos`, `recibos`                  | Confirmación online exclusivamente (folio, invariantes server-side)                               | mutación tRPC + `operationId`                                        |
+| Recolecciones                                                                                      | `recoleccion`                       | Confirmación online (unicidad de slot adjudicada en servidor)                                     | mutación tRPC + `operationId`                                        |
+| Cortes, liquidaciones, mermas                                                                      | `cortes`, `liquidaciones`, `mermas` | Confirmación online / server-owned                                                                | mutación tRPC + `operationId`                                        |
+| Chat                                                                                               | `conversaciones`, `mensajes`        | Escritura offline en cola (S3 eventual)                                                           | push de replicación bidireccional                                    |
+| Imágenes (binarios)                                                                                | `producto_imagenes`, `documento`    | Subida solo-online (D-1); referencias por PULL                                                    | mutación tRPC para subida; PULL para referencias                     |
+| Logs, auth, tokens                                                                                 | —                                   | Solo-online, **nunca en cliente** (S4)                                                            | sin colección RxDB                                                   |
 
 - **Lectura offline:** información previamente sincronizada y permitida por los permisos del usuario.
 - **Escritura offline (cola):** solo operaciones cuyo impacto puede gestionarse de manera segura con cola local + validación central al sincronizar (borradores, mensajes, creación de pedidos).
@@ -231,19 +231,19 @@ La sincronización se reanuda sin intervención manual:
 
 Cada prueba del listado original, con su resultado observable verificable en el corte vertical:
 
-| Prueba | Comprobación observable |
-| --- | --- |
-| Persistencia offline | Con el servidor detenido, escribir un documento permitido, recargar la página (Dexie/IndexedDB persiste) y leerlo: la query reactiva devuelve el documento sin conexión. |
-| Reconexión | Reanudar el servidor: dentro de `retryTime`/evento `online` el push se entrega; el documento aparece en PostgreSQL y el indicador de sync pasa a activo. |
-| Recuperación de checkpoints | Sembrar en `sync_cambio` más filas que el `límite`; la sincronización inicial entrega todos por lotes; recargar el navegador a mitad de sincronización: el siguiente `sync.pull` llega con el checkpoint del último lote (el servidor registra el `seq` solicitado) y no re-entrega filas anteriores. |
-| Reintentos | Inyectar un 500 una vez en `sync.push`: el mismo `operationId` se reintenta y la operación se aplica exactamente una vez. |
-| Idempotencia | Enviar el mismo push dos veces: la segunda respuesta devuelve el veredicto almacenado; `count(*)` en la tabla de negocio no cambia; una fila en `sync_operacion`. |
-| Conflictos concurrentes | Dos clientes actualizan la misma `localidad` con la misma `versionAsumida`: el segundo recibe `conflicto` con `estadoServidor`; tras sincronizar, el documento del perdedor es igual al estado del servidor; `sync_operacion` conserva ambos estados. |
-| Eliminaciones | Soft-delete de un `municipio` en el servidor → el cliente lo recibe con `_deleted: true` (findOne null); restaurarlo llega como actualización normal. |
-| Cambio de usuario | Logout detiene replicaciones; login como otro usuario: las colecciones locales están vacías antes del primer pull (política de purga §11). |
-| Desconexiones prolongadas | 5 minutos offline con N escrituras permitidas en cola: al reconectar, las N llegan en orden de checkpoint y `count(*)` en PostgreSQL coincide; ninguna se pierde ni duplica. |
-| Recuperación tras respuesta perdida | Aceptar el push en el servidor y descartar la respuesta (proxy): el reintento con el mismo `operationId` devuelve el veredicto almacenado; una sola fila en PostgreSQL y estado cliente correcto. |
-| Consistencia PostgreSQL ↔ RxDB | Tras sincronizar, para cada colección del slice: `count` y checksum de campos clave idénticos en ambos lados. |
+| Prueba                              | Comprobación observable                                                                                                                                                                                                                                                                               |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Persistencia offline                | Con el servidor detenido, escribir un documento permitido, recargar la página (Dexie/IndexedDB persiste) y leerlo: la query reactiva devuelve el documento sin conexión.                                                                                                                              |
+| Reconexión                          | Reanudar el servidor: dentro de `retryTime`/evento `online` el push se entrega; el documento aparece en PostgreSQL y el indicador de sync pasa a activo.                                                                                                                                              |
+| Recuperación de checkpoints         | Sembrar en `sync_cambio` más filas que el `límite`; la sincronización inicial entrega todos por lotes; recargar el navegador a mitad de sincronización: el siguiente `sync.pull` llega con el checkpoint del último lote (el servidor registra el `seq` solicitado) y no re-entrega filas anteriores. |
+| Reintentos                          | Inyectar un 500 una vez en `sync.push`: el mismo `operationId` se reintenta y la operación se aplica exactamente una vez.                                                                                                                                                                             |
+| Idempotencia                        | Enviar el mismo push dos veces: la segunda respuesta devuelve el veredicto almacenado; `count(*)` en la tabla de negocio no cambia; una fila en `sync_operacion`.                                                                                                                                     |
+| Conflictos concurrentes             | Dos clientes actualizan la misma `localidad` con la misma `versionAsumida`: el segundo recibe `conflicto` con `estadoServidor`; tras sincronizar, el documento del perdedor es igual al estado del servidor; `sync_operacion` conserva ambos estados.                                                 |
+| Eliminaciones                       | Soft-delete de un `municipio` en el servidor → el cliente lo recibe con `_deleted: true` (findOne null); restaurarlo llega como actualización normal.                                                                                                                                                 |
+| Cambio de usuario                   | Logout detiene replicaciones; login como otro usuario: las colecciones locales están vacías antes del primer pull (política de purga §11).                                                                                                                                                            |
+| Desconexiones prolongadas           | 5 minutos offline con N escrituras permitidas en cola: al reconectar, las N llegan en orden de checkpoint y `count(*)` en PostgreSQL coincide; ninguna se pierde ni duplica.                                                                                                                          |
+| Recuperación tras respuesta perdida | Aceptar el push en el servidor y descartar la respuesta (proxy): el reintento con el mismo `operationId` devuelve el veredicto almacenado; una sola fila en PostgreSQL y estado cliente correcto.                                                                                                     |
+| Consistencia PostgreSQL ↔ RxDB      | Tras sincronizar, para cada colección del slice: `count` y checksum de campos clave idénticos en ambos lados.                                                                                                                                                                                         |
 
 ## 13. Criterio de aceptación
 
