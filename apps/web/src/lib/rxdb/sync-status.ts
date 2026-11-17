@@ -28,7 +28,15 @@ const EMPTY_STATUS: ColeccionSyncStatus = {
   checkpoint: null,
 };
 
-const COLECCIONES: readonly Coleccion[] = ["municipios", "localidades", "categorias", "unidades"];
+const COLECCIONES: readonly Coleccion[] = [
+  "municipios",
+  "localidades",
+  "categorias",
+  "unidades",
+  "familias",
+  "membresias",
+  "limites_credito",
+];
 
 let state: SyncStatusState = {
   collections: Object.fromEntries(COLECCIONES.map((c) => [c, EMPTY_STATUS])) as Record<

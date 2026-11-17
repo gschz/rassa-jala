@@ -63,6 +63,40 @@ export type UnidadDoc = {
   actualizadoEn: string;
 };
 
+// P0 Familias (doc-deviation of database.md §6.2's single `familias` row): three PULL-only
+// scoped collections — `familias` (admin: all; member: own), `membresias` (own rows + the
+// roster of the user's family; carries `correo` for roster rendering) and
+// `limites_credito` (own user limit + family limit; money as string, F-29). See
+// sync.ts on the server for the trigger-based re-delivery rationale.
+export type FamiliaDoc = {
+  id: string;
+  nombre: string;
+  fkJefeUsuario: string | null;
+  estado: boolean;
+  version: number;
+  actualizadoEn: string;
+};
+
+export type MembresiaDoc = {
+  id: string;
+  fkUsuario: string;
+  fkFamilia: string;
+  correo: string;
+  estado: boolean;
+  version: number;
+  actualizadoEn: string;
+};
+
+export type LimiteCreditoDoc = {
+  id: string;
+  monto: string;
+  fkFamilia: string | null;
+  fkUsuario: string | null;
+  estado: boolean;
+  version: number;
+  actualizadoEn: string;
+};
+
 export const municipiosSchema: RxJsonSchema<MunicipioDoc> = {
   title: "municipio",
   version: 0,
@@ -128,6 +162,57 @@ export const unidadesSchema: RxJsonSchema<UnidadDoc> = {
   required: ["id", "nombre", "estado", "version", "actualizadoEn"],
 };
 
+export const familiasSchema: RxJsonSchema<FamiliaDoc> = {
+  title: "familia",
+  version: 0,
+  primaryKey: "id",
+  type: "object",
+  properties: {
+    id: { type: "string", maxLength: 36 },
+    nombre: { type: "string" },
+    fkJefeUsuario: { type: ["string", "null"], maxLength: 36 },
+    estado: { type: "boolean" },
+    version: { type: "integer" },
+    actualizadoEn: { type: "string" },
+  },
+  required: ["id", "nombre", "fkJefeUsuario", "estado", "version", "actualizadoEn"],
+};
+
+export const membresiasSchema: RxJsonSchema<MembresiaDoc> = {
+  title: "familia_usuario",
+  version: 0,
+  primaryKey: "id",
+  type: "object",
+  properties: {
+    id: { type: "string", maxLength: 36 },
+    fkUsuario: { type: "string", maxLength: 36 },
+    fkFamilia: { type: "string", maxLength: 36 },
+    correo: { type: "string" },
+    estado: { type: "boolean" },
+    version: { type: "integer" },
+    actualizadoEn: { type: "string" },
+  },
+  required: ["id", "fkUsuario", "fkFamilia", "correo", "estado", "version", "actualizadoEn"],
+};
+
+export const limitesCreditoSchema: RxJsonSchema<LimiteCreditoDoc> = {
+  title: "limite_credito",
+  version: 0,
+  primaryKey: "id",
+  type: "object",
+  properties: {
+    id: { type: "string", maxLength: 36 },
+    // numeric(12,2) serialized as string (F-29: money never as float).
+    monto: { type: "string" },
+    fkFamilia: { type: ["string", "null"], maxLength: 36 },
+    fkUsuario: { type: ["string", "null"], maxLength: 36 },
+    estado: { type: "boolean" },
+    version: { type: "integer" },
+    actualizadoEn: { type: "string" },
+  },
+  required: ["id", "monto", "fkFamilia", "fkUsuario", "estado", "version", "actualizadoEn"],
+};
+
 /**
  * S1 conflict policy (sync doc §6): the central state always wins.
  * doc-deviation: sync doc §2.1 shows conflictHandler as a bare function
@@ -149,6 +234,9 @@ export type RassaCollections = {
   localidades: RxCollection<LocalidadDoc>;
   categorias: RxCollection<CategoriaDoc>;
   unidades: RxCollection<UnidadDoc>;
+  familias: RxCollection<FamiliaDoc>;
+  membresias: RxCollection<MembresiaDoc>;
+  limites_credito: RxCollection<LimiteCreditoDoc>;
 };
 
 export type RassaDatabase = RxDatabase<RassaCollections>;
@@ -169,6 +257,18 @@ export const collectionCreators = {
   unidades: {
     schema: unidadesSchema,
     conflictHandler: serverWinsConflictHandler<UnidadDoc>(),
+  },
+  familias: {
+    schema: familiasSchema,
+    conflictHandler: serverWinsConflictHandler<FamiliaDoc>(),
+  },
+  membresias: {
+    schema: membresiasSchema,
+    conflictHandler: serverWinsConflictHandler<MembresiaDoc>(),
+  },
+  limites_credito: {
+    schema: limitesCreditoSchema,
+    conflictHandler: serverWinsConflictHandler<LimiteCreditoDoc>(),
   },
 };
 

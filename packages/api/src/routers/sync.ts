@@ -7,10 +7,20 @@ import { protectedProcedure, router } from "../index";
 import { ROLE } from "../context";
 
 // Synchronization protocol — normative sources: docs/synchronization.md (§4 PULL, §5 PUSH,
-// §7 idempotency, §8 deletions, §14 slice scope) and docs/database.md (§6.2 collection map,
-// §6.3 document↔row transform, §7.1 M-1a/M-1b, SP-2/SP-3).
+// §7 idempotency, §8 deletions, §11 user isolation, §14 slice scope) and docs/database.md
+// (§6.2 collection map, §6.3 document↔row transform, §7.1 M-1a/M-1b/M-8/M-9, SP-2/SP-3).
 
-export const COLECCIONES = ["municipios", "localidades", "categorias", "unidades"] as const;
+export const COLECCIONES = [
+  "municipios",
+  "localidades",
+  "categorias",
+  "unidades",
+  // P0 Familias (M-9): scoped collections — admin sees all, members only their own
+  // family data (§11: scoping revalidated per pull; checkpoints are per user).
+  "familias",
+  "membresias",
+  "limites_credito",
+] as const;
 export type Coleccion = (typeof COLECCIONES)[number];
 
 const VEREDICTO = {
@@ -67,6 +77,42 @@ export interface UnidadDoc {
   _deleted: boolean;
 }
 
+// P0 Familias (M-9, doc-deviation of §6.2's single `familias` row): three scoped PULL
+// collections. `membresias` carries `correo` so a member's client can render the family
+// roster (legacy chat semantics: members see co-members).
+export interface FamiliaDoc {
+  id: string;
+  nombre: string;
+  fkJefeUsuario: string | null;
+  estado: boolean;
+  version: number;
+  actualizadoEn: string;
+  _deleted: boolean;
+}
+
+export interface MembresiaDoc {
+  id: string;
+  fkUsuario: string;
+  fkFamilia: string;
+  correo: string;
+  estado: boolean;
+  version: number;
+  actualizadoEn: string;
+  _deleted: boolean;
+}
+
+// Money travels as string (F-29: numeric → string, never float).
+export interface LimiteCreditoDoc {
+  id: string;
+  monto: string;
+  fkFamilia: string | null;
+  fkUsuario: string | null;
+  estado: boolean;
+  version: number;
+  actualizadoEn: string;
+  _deleted: boolean;
+}
+
 // Hard deletes leave only a minimal tombstone (synchronization.md §4.3); the slice produces none
 // (soft-delete keeps the row), but PULL handles the outbox 'delete' case defensively.
 export interface TombstoneDoc {
@@ -78,6 +124,9 @@ export type MunicipioPullDoc = MunicipioDoc | TombstoneDoc;
 export type LocalidadPullDoc = LocalidadDoc | TombstoneDoc;
 export type CategoriaPullDoc = CategoriaDoc | TombstoneDoc;
 export type UnidadPullDoc = UnidadDoc | TombstoneDoc;
+export type FamiliaPullDoc = FamiliaDoc | TombstoneDoc;
+export type MembresiaPullDoc = MembresiaDoc | TombstoneDoc;
+export type LimiteCreditoPullDoc = LimiteCreditoDoc | TombstoneDoc;
 
 export interface ResultadoPush {
   operationId: string;
@@ -96,6 +145,9 @@ type FilaLocalidad = ElementoDe<Awaited<ReturnType<Database["localidad"]["findMa
 type FilaMunicipio = ElementoDe<Awaited<ReturnType<Database["municipio"]["findMany"]>>>;
 type FilaCategoria = ElementoDe<Awaited<ReturnType<Database["categoriaProducto"]["findMany"]>>>;
 type FilaUnidad = ElementoDe<Awaited<ReturnType<Database["unidad"]["findMany"]>>>;
+type FilaFamilia = ElementoDe<Awaited<ReturnType<Database["familia"]["findMany"]>>>;
+type FilaMembresia = ElementoDe<Awaited<ReturnType<Database["familiaUsuario"]["findMany"]>>>;
+type FilaLimite = ElementoDe<Awaited<ReturnType<Database["limiteCredito"]["findMany"]>>>;
 
 // ---- PULL (§4) ----
 
@@ -108,6 +160,9 @@ const TABLA_POR_COLECCION: Record<Coleccion, string> = {
   localidades: "localidad",
   categorias: "categoria_producto",
   unidades: "unidad",
+  familias: "familia",
+  membresias: "familia_usuario",
+  limites_credito: "limite_credito",
 };
 
 type DocPullDe<C extends Coleccion> = {
@@ -115,6 +170,9 @@ type DocPullDe<C extends Coleccion> = {
   localidades: LocalidadPullDoc;
   categorias: CategoriaPullDoc;
   unidades: UnidadPullDoc;
+  familias: FamiliaPullDoc;
+  membresias: MembresiaPullDoc;
+  limites_credito: LimiteCreditoPullDoc;
 }[C];
 
 // Only advance the checkpoint over contiguous seq prefixes; a gap younger than the grace window
@@ -190,7 +248,7 @@ function aDocUnidad(fila: FilaUnidad): UnidadDoc {
 // Resolve the CURRENT state of each outbox row's business row; operacion='delete' or a missing row
 // yields a minimal tombstone (§4.3). The casts bridge the C↔case correlation TypeScript cannot
 // express; each is checked by the switch itself.
-async function resolverDocumentos<C extends Coleccion>(
+async function resolverDocumentos<C extends GlobalColeccion>(
   coleccion: C,
   lote: FilaSyncCambio[],
   db: Database,
@@ -238,7 +296,7 @@ async function resolverDocumentos<C extends Coleccion>(
   }
 }
 
-function makePullProcedure<C extends Coleccion>(coleccion: C) {
+function makePullProcedure<C extends GlobalColeccion>(coleccion: C) {
   // Global S1 catalogs are readable by ANY authenticated user (database.md §6.2 global
   // scoping); only authentication is enforced here, no role filter.
   return protectedProcedure
@@ -265,6 +323,275 @@ function makePullProcedure<C extends Coleccion>(coleccion: C) {
 
       const lote = cortarEnBrechas(outbox, checkpoint).slice(0, input.limite);
       const documentos = await resolverDocumentos(coleccion, lote, ctx.db);
+
+      const ultimaFila = lote.at(-1);
+      const seqFinal = ultimaFila ? Number(ultimaFila.id) : (input.checkpoint?.seq ?? 0);
+      if (!Number.isSafeInteger(seqFinal)) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "sync_cambio seq too large",
+        });
+      }
+      return { documentos, checkpoint: { seq: seqFinal } };
+    });
+}
+
+// ---- Scoped PULL (P0 Familias, M-9) ----
+
+const GLOBAL_COLECCIONES = ["municipios", "localidades", "categorias", "unidades"] as const;
+type GlobalColeccion = (typeof GLOBAL_COLECCIONES)[number];
+const SCOPED_COLECCIONES = ["familias", "membresias", "limites_credito"] as const;
+type ScopedColeccion = (typeof SCOPED_COLECCIONES)[number];
+
+function aDocFamiliaScoped(fila: FilaFamilia): FamiliaDoc {
+  return {
+    id: fila.id,
+    nombre: fila.nombre,
+    fkJefeUsuario: fila.fkJefeUsuario,
+    estado: fila.estado,
+    version: fila.version,
+    actualizadoEn: fila.actualizadoEn.toISOString(),
+    _deleted: !fila.estado,
+  };
+}
+
+function aDocMembresiaScoped(fila: FilaMembresia & { usuario: { correo: string } }): MembresiaDoc {
+  return {
+    id: fila.id,
+    fkUsuario: fila.fkUsuario,
+    fkFamilia: fila.fkFamilia,
+    correo: fila.usuario.correo,
+    estado: fila.estado,
+    version: fila.version,
+    actualizadoEn: fila.actualizadoEn.toISOString(),
+    _deleted: !fila.estado,
+  };
+}
+
+function aDocLimiteScoped(fila: FilaLimite): LimiteCreditoDoc {
+  return {
+    id: fila.id,
+    monto: fila.monto.toFixed(2),
+    fkFamilia: fila.fkFamilia,
+    fkUsuario: fila.fkUsuario,
+    estado: fila.estado,
+    version: fila.version,
+    actualizadoEn: fila.actualizadoEn.toISOString(),
+    _deleted: !fila.estado,
+  };
+}
+
+// Outbox sources per scoped collection. For non-admins, membership rows ('familia_usuario')
+// ride along in `familias`/`limites_credito` as TRIGGERS: joining a family changes the
+// user's visibility retroactively, and their checkpoint already passed that family's own
+// outbox rows — the membership row re-delivers the affected family state.
+function tablasOutboxDe(coleccion: ScopedColeccion, esAdmin: boolean): string[] {
+  switch (coleccion) {
+    case "familias":
+      return esAdmin ? ["familia"] : ["familia", "familia_usuario"];
+    case "membresias":
+      return ["familia_usuario"];
+    case "limites_credito":
+      return esAdmin ? ["limite_credito"] : ["limite_credito", "familia_usuario"];
+  }
+}
+
+// Admin → all; member → only their family docs. Own-membership triggers: join delivers
+// the family doc; baja delivers a tombstone (the family is no longer the user's).
+async function resolverFamiliasScoped(
+  lote: FilaSyncCambio[],
+  db: Database,
+  esAdmin: boolean,
+  idUsuario: string,
+): Promise<FamiliaPullDoc[]> {
+  // id → tombstone? (the user left the family → _deleted doc)
+  const objetivos = new Map<string, boolean>();
+  if (esAdmin) {
+    for (const fila of lote) objetivos.set(fila.idFila, false);
+  } else {
+    const propias = await db.familiaUsuario.findMany({
+      where: { fkUsuario: idUsuario, estado: true },
+      select: { fkFamilia: true },
+    });
+    const misFamilias = new Set(propias.map((p) => p.fkFamilia));
+    const idsMembresia = lote
+      .filter((f) => f.tablaOrigen === "familia_usuario")
+      .map((f) => f.idFila);
+    const filasMembresia = idsMembresia.length
+      ? await db.familiaUsuario.findMany({ where: { id: { in: idsMembresia } } })
+      : [];
+    for (const fila of lote) {
+      if (fila.tablaOrigen === "familia") {
+        if (misFamilias.has(fila.idFila)) objetivos.set(fila.idFila, false);
+        continue;
+      }
+      const membresia = filasMembresia.find((m) => m.id === fila.idFila);
+      if (membresia?.fkUsuario === idUsuario) {
+        objetivos.set(membresia.fkFamilia, !membresia.estado);
+      }
+    }
+  }
+  const idsReales = [...objetivos].filter(([, tombstone]) => !tombstone).map(([id]) => id);
+  const filas = idsReales.length
+    ? await db.familia.findMany({ where: { id: { in: idsReales } } })
+    : [];
+  const porId = new Map(filas.map((f) => [f.id, f]));
+  const documentos = new Map<string, FamiliaPullDoc>();
+  for (const [id, tombstone] of objetivos) {
+    const fila = !tombstone ? porId.get(id) : undefined;
+    documentos.set(id, fila ? aDocFamiliaScoped(fila) : { id, _deleted: true });
+  }
+  return [...documentos.values()];
+}
+
+// Admin → all; member → own membership rows + the CURRENT roster of their active family
+// (a co-member row re-delivers the roster, covering members added before the checkpoint).
+async function resolverMembresiasScoped(
+  lote: FilaSyncCambio[],
+  db: Database,
+  esAdmin: boolean,
+  idUsuario: string,
+): Promise<MembresiaPullDoc[]> {
+  const documentos = new Map<string, MembresiaPullDoc>();
+  const ids = [...new Set(lote.map((f) => f.idFila))];
+  const filas = ids.length
+    ? await db.familiaUsuario.findMany({
+        where: { id: { in: ids } },
+        include: { usuario: { select: { correo: true } } },
+      })
+    : [];
+  const porId = new Map(filas.map((f) => [f.id, f]));
+  const misFamilias = esAdmin
+    ? new Set<string>()
+    : new Set(
+        (
+          await db.familiaUsuario.findMany({
+            where: { fkUsuario: idUsuario, estado: true },
+            select: { fkFamilia: true },
+          })
+        ).map((p) => p.fkFamilia),
+      );
+  const rosters = new Set<string>();
+  for (const fila of lote) {
+    if (fila.operacion === "delete" || !porId.get(fila.idFila)) {
+      documentos.set(fila.idFila, { id: fila.idFila, _deleted: true });
+      continue;
+    }
+    const membresia = porId.get(fila.idFila)!;
+    if (esAdmin || membresia.fkUsuario === idUsuario) {
+      documentos.set(membresia.id, aDocMembresiaScoped(membresia));
+    } else if (misFamilias.has(membresia.fkFamilia)) {
+      rosters.add(membresia.fkFamilia);
+    }
+  }
+  for (const fkFamilia of rosters) {
+    const roster = await db.familiaUsuario.findMany({
+      where: { fkFamilia },
+      include: { usuario: { select: { correo: true } } },
+    });
+    for (const m of roster) documentos.set(m.id, aDocMembresiaScoped(m));
+  }
+  return [...documentos.values()];
+}
+
+// Admin → all; member → their own user limit + their family's limit. Own-membership
+// triggers: join delivers the family limit; baja tombstones it (visibility ended).
+async function resolverLimitesScoped(
+  lote: FilaSyncCambio[],
+  db: Database,
+  esAdmin: boolean,
+  idUsuario: string,
+): Promise<LimiteCreditoPullDoc[]> {
+  const objetivos = new Map<string, boolean>();
+  if (esAdmin) {
+    for (const fila of lote) objetivos.set(fila.idFila, false);
+  } else {
+    const propias = await db.familiaUsuario.findMany({
+      where: { fkUsuario: idUsuario, estado: true },
+      select: { fkFamilia: true },
+    });
+    const misFamilias = new Set(propias.map((p) => p.fkFamilia));
+    const idsLimite = lote.filter((f) => f.tablaOrigen === "limite_credito").map((f) => f.idFila);
+    const filasLimite = idsLimite.length
+      ? await db.limiteCredito.findMany({ where: { id: { in: idsLimite } } })
+      : [];
+    for (const fila of filasLimite) {
+      const visible =
+        fila.fkUsuario === idUsuario || (fila.fkFamilia != null && misFamilias.has(fila.fkFamilia));
+      if (visible) objetivos.set(fila.id, false);
+    }
+    const idsMembresia = lote
+      .filter((f) => f.tablaOrigen === "familia_usuario")
+      .map((f) => f.idFila);
+    const filasMembresia = idsMembresia.length
+      ? await db.familiaUsuario.findMany({ where: { id: { in: idsMembresia } } })
+      : [];
+    for (const membresia of filasMembresia) {
+      if (membresia.fkUsuario !== idUsuario) continue;
+      const limite = await db.limiteCredito.findFirst({
+        where: { fkFamilia: membresia.fkFamilia },
+      });
+      if (limite) objetivos.set(limite.id, !membresia.estado);
+    }
+  }
+  const idsReales = [...objetivos].filter(([, tombstone]) => !tombstone).map(([id]) => id);
+  const filas = idsReales.length
+    ? await db.limiteCredito.findMany({ where: { id: { in: idsReales } } })
+    : [];
+  const porId = new Map(filas.map((f) => [f.id, f]));
+  const documentos = new Map<string, LimiteCreditoPullDoc>();
+  for (const [id, tombstone] of objetivos) {
+    const fila = !tombstone ? porId.get(id) : undefined;
+    documentos.set(id, fila ? aDocLimiteScoped(fila) : { id, _deleted: true });
+  }
+  return [...documentos.values()];
+}
+
+async function resolverScoped<C extends ScopedColeccion>(
+  coleccion: C,
+  lote: FilaSyncCambio[],
+  db: Database,
+  esAdmin: boolean,
+  idUsuario: string,
+): Promise<Array<DocPullDe<C>>> {
+  switch (coleccion) {
+    case "familias":
+      return (await resolverFamiliasScoped(lote, db, esAdmin, idUsuario)) as Array<DocPullDe<C>>;
+    case "membresias":
+      return (await resolverMembresiasScoped(lote, db, esAdmin, idUsuario)) as Array<DocPullDe<C>>;
+    case "limites_credito":
+      return (await resolverLimitesScoped(lote, db, esAdmin, idUsuario)) as Array<DocPullDe<C>>;
+  }
+}
+
+// Same PULL contract as the global factory (§4), but the batch selection and the
+// resolution apply the §11 role+family scoping on every call.
+function makeScopedPullProcedure<C extends ScopedColeccion>(coleccion: C) {
+  return protectedProcedure
+    .input(
+      z.object({
+        coleccion: z.literal(coleccion),
+        checkpoint: z
+          .object({ seq: z.number().int().min(0) })
+          .nullable()
+          .optional(),
+        limite: z.number().int().min(5).max(200).default(50),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      const esAdmin = ctx.user.rol === ROLE.ADMIN;
+      const checkpoint = BigInt(input.checkpoint?.seq ?? 0);
+      const outbox = await ctx.db.syncCambio.findMany({
+        where: {
+          id: { gt: checkpoint },
+          tablaOrigen: { in: tablasOutboxDe(coleccion, esAdmin) },
+        },
+        orderBy: { id: "asc" },
+        take: input.limite + GAP_MARGIN,
+      });
+
+      const lote = cortarEnBrechas(outbox, checkpoint).slice(0, input.limite);
+      const documentos = await resolverScoped(coleccion, lote, ctx.db, esAdmin, ctx.user.id);
 
       const ultimaFila = lote.at(-1);
       const seqFinal = ultimaFila ? Number(ultimaFila.id) : (input.checkpoint?.seq ?? 0);
@@ -526,7 +853,8 @@ function makePushProcedure() {
 }
 
 // §3.1/§4.1 — one procedure per collection via a common factory; PUSH only registers collections
-// with offline write (slice: localidades, §14).
+// with offline write (slice: localidades, §14). Familias collections are PULL-only (admin
+// mutations are online tRPC procedures).
 export const syncRouter = router({
   municipios: router({ pull: makePullProcedure("municipios") }),
   localidades: router({
@@ -535,4 +863,7 @@ export const syncRouter = router({
   }),
   categorias: router({ pull: makePullProcedure("categorias") }),
   unidades: router({ pull: makePullProcedure("unidades") }),
+  familias: router({ pull: makeScopedPullProcedure("familias") }),
+  membresias: router({ pull: makeScopedPullProcedure("membresias") }),
+  limites_credito: router({ pull: makeScopedPullProcedure("limites_credito") }),
 });

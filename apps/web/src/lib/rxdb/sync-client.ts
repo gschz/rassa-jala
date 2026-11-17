@@ -27,7 +27,15 @@ const syncClient = createTRPCUntypedClient<AnyRouter>({
 
 export type SyncCheckpoint = { seq: number };
 
-const COLECCIONES = ["municipios", "localidades", "categorias", "unidades"] as const;
+const COLECCIONES = [
+  "municipios",
+  "localidades",
+  "categorias",
+  "unidades",
+  "familias",
+  "membresias",
+  "limites_credito",
+] as const;
 export type Coleccion = (typeof COLECCIONES)[number];
 
 /** sync.{coleccion}.pull — sync doc §3.1/§4.1 (one procedure per collection). */

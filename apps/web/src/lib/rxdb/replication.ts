@@ -7,11 +7,15 @@ import type {
 } from "rxdb/plugins/core";
 
 import { ENV } from "../../env";
+import { getSession } from "../auth/session";
 import type {
   LocalidadDoc,
   MunicipioDoc,
   CategoriaDoc,
   UnidadDoc,
+  FamiliaDoc,
+  MembresiaDoc,
+  LimiteCreditoDoc,
   RassaDatabase,
 } from "./database";
 import {
@@ -28,8 +32,9 @@ const PUSH_BATCH_SIZE = 50;
 const RESYNC_INTERVAL_MS = 15_000;
 
 /**
- * Replication wiring for the slice collections (sync doc §14): PULL for all
- * four (S1 cache-first), PUSH only for `localidades` (mechanism demo).
+ * Replication wiring for the slice collections (sync doc §14) plus the P0 Familias
+ * scoped collections: PULL for all (S1 cache-first), PUSH only for `localidades`
+ * (mechanism demo). Scoped collections replicate with a per-user checkpoint (§11).
  */
 
 type ReplicationHandle = {
@@ -102,11 +107,13 @@ function startReplication<TDoc>(
   coleccion: Coleccion,
   collection: RxCollection<TDoc>,
   push: ReplicationPushHandler<TDoc> | undefined,
+  sufijoIdentidad = "",
 ): ReplicationHandle {
   // §2.1: the replicationIdentifier persists checkpoints and resumes after
-  // reload; it includes the server URL per the docs' recommendation.
+  // reload; it includes the server URL per the docs' recommendation. Scoped
+  // collections append the user id (§11) via sufijoIdentidad.
   const state = replicateRxCollection<TDoc, SyncCheckpoint>({
-    replicationIdentifier: `rassajala-slice-${coleccion}:${ENV.VITE_SERVER_URL}`,
+    replicationIdentifier: `rassajala-slice-${coleccion}${sufijoIdentidad}:${ENV.VITE_SERVER_URL}`,
     collection,
     deletedField: "_deleted",
     live: true,
@@ -128,17 +135,42 @@ function startReplication<TDoc>(
   };
 }
 
+// Scoped collections (P0 Familias): the server filters docs per identity (sync doc §11),
+// so the checkpoint key MUST be per user — a shared checkpoint would hide data when the
+// account changes on the same browser.
+function startScopedReplication<TDoc>(
+  coleccion: Coleccion,
+  collection: RxCollection<TDoc>,
+  idUsuario: string,
+): ReplicationHandle {
+  return startReplication<TDoc>(coleccion, collection, undefined, `:${idUsuario}@`);
+}
+
 export type ReplicationSet = {
   reSyncAll: () => void;
   stop: () => Promise<void>;
 };
 
 export function startReplications(db: RassaDatabase): ReplicationSet {
+  const idUsuario = getSession().user?.id;
   const handles: ReplicationHandle[] = [
     startReplication<MunicipioDoc>("municipios", db.municipios, undefined),
     startReplication<LocalidadDoc>("localidades", db.localidades, pushLocalidadesHandler()),
     startReplication<CategoriaDoc>("categorias", db.categorias, undefined),
     startReplication<UnidadDoc>("unidades", db.unidades, undefined),
+    // Scoped PULL-only collections (P0 Familias): started only with an authenticated
+    // identity — without a user there is nothing to scope against.
+    ...(idUsuario
+      ? [
+          startScopedReplication<FamiliaDoc>("familias", db.familias, idUsuario),
+          startScopedReplication<MembresiaDoc>("membresias", db.membresias, idUsuario),
+          startScopedReplication<LimiteCreditoDoc>(
+            "limites_credito",
+            db.limites_credito,
+            idUsuario,
+          ),
+        ]
+      : []),
   ];
 
   const reSyncAll = (): void => {

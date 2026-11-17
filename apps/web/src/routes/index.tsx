@@ -19,8 +19,14 @@ import Loader from "@/components/loader";
 import { EstadoSincronizacion } from "@/components/sync/sync-status-bar";
 import { useOnline } from "@/hooks/use-online";
 import { refreshSession } from "@/lib/auth/http";
-import { getAccessToken } from "@/lib/auth/session";
-import { type LocalidadDoc, type MunicipioDoc, type RassaDatabase } from "@/lib/rxdb/database";
+import { getAccessToken, useSession } from "@/lib/auth/session";
+import {
+  type FamiliaDoc,
+  type LocalidadDoc,
+  type MembresiaDoc,
+  type MunicipioDoc,
+  type RassaDatabase,
+} from "@/lib/rxdb/database";
 import { startReplications } from "@/lib/rxdb/replication";
 import { trackPending, useSyncStatus } from "@/lib/rxdb/sync-status";
 import { useDatabase } from "@/lib/rxdb/use-database";
@@ -59,6 +65,10 @@ const SORT_NOMBRE: MangoQuery<MunicipioDoc> = { sort: [{ nombre: "asc" }] };
 const LOCALIDADES_QUERY: MangoQuery<LocalidadDoc> = {
   sort: [{ nombre: "asc" }],
 };
+// Own-family display: read the full scoped collections and filter by identity
+// client-side (the server already scopes what each user receives via PULL).
+const FAMILIAS_QUERY: MangoQuery<FamiliaDoc> = { sort: [{ id: "asc" }] };
+const MEMBRESIAS_QUERY: MangoQuery<MembresiaDoc> = { sort: [{ id: "asc" }] };
 
 function HomeComponent() {
   const db = useDatabase();
@@ -99,6 +109,8 @@ function CatalogoPage({ db }: Readonly<{ db: RassaDatabase }>) {
 
       <EstadoSincronizacion online={online} status={status} />
 
+      <TarjetaMiFamilia db={db} />
+
       <div className="grid gap-4 md:grid-cols-2">
         <NuevaLocalidadForm
           db={db}
@@ -134,6 +146,60 @@ function CatalogoPage({ db }: Readonly<{ db: RassaDatabase }>) {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function TarjetaMiFamilia({ db }: Readonly<{ db: RassaDatabase }>) {
+  const session = useSession();
+  const idUsuario = session.user?.id ?? "";
+  const familias = useRxQuery<FamiliaDoc>({ collection: db.familias, query: FAMILIAS_QUERY });
+  const membresias = useRxQuery<MembresiaDoc>({
+    collection: db.membresias,
+    query: MEMBRESIAS_QUERY,
+  });
+
+  const docsFamilias = familias.results.map((doc) => doc.toJSON() as FamiliaDoc);
+  const docsMembresias = membresias.results.map((doc) => doc.toJSON() as MembresiaDoc);
+  const membresiaPropia = docsMembresias.find((m) => m.fkUsuario === idUsuario && m.estado);
+  const familia = membresiaPropia
+    ? docsFamilias.find((f) => f.id === membresiaPropia.fkFamilia)
+    : undefined;
+  const integrantes = familia ? docsMembresias.filter((m) => m.fkFamilia === familia.id) : [];
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Mi familia</CardTitle>
+        <CardDescription>
+          Datos entregados por replicación PULL según tu identidad: un usuario solo recibe su propia
+          familia.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {!familia ? (
+          <p className="text-sm text-muted-foreground">Sin familia asignada</p>
+        ) : (
+          <div className="space-y-2">
+            <p className="text-sm font-medium">{familia.nombre}</p>
+            <ul className="space-y-1">
+              {integrantes.map((miembro) => (
+                <li
+                  key={miembro.id}
+                  className="flex items-center justify-between gap-2 rounded-md border p-2"
+                >
+                  <span className="text-sm">{miembro.correo}</span>
+                  {miembro.fkUsuario === familia.fkJefeUsuario && (
+                    <span className="rounded-full border px-2 py-0.5 text-xs text-amber-600">
+                      Jefe
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

@@ -44,7 +44,10 @@ export default function Header() {
   const links = [
     { to: "/", label: "Catálogos" },
     ...(session.user?.rol === "Admin"
-      ? [{ to: "/catalogos", label: "Administración" as const }]
+      ? [
+          { to: "/catalogos", label: "Administración" as const },
+          { to: "/familias", label: "Familias" as const },
+        ]
       : []),
   ] as const;
 

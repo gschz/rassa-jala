@@ -119,7 +119,22 @@ const BLOQUEADO_PERSONA_ID = "4fa730b1-e705-4620-a881-3f07ccf09254";
 // Active non-admin user: proves the Admin-only push role check (legacy IsAdminOrReadOnly).
 const AGRICULTOR_ID = "5c2fa9c1-8e6f-4b0e-9f38-7a1d5c4e2b90";
 const AGRICULTOR_PERSONA_ID = "9d3e77aa-2f6c-4c58-b1e4-0a8f5d6e7c21";
+// Second family member (jefe) + standalone client with an individual credit limit.
+const VENDEDOR_ID = "8b7e2f61-4c93-4a1e-9d47-3f6a2c8b5d10";
+const VENDEDOR_PERSONA_ID = "c1d4a8f2-6b35-4e97-8a20-5d9c7e4b3f11";
+const CLIENTE_ID = "3e9a6c28-7d51-4b83-a2f4-9c1b8e5d7a46";
+const CLIENTE_PERSONA_ID = "f2a8d3c5-1e97-4b62-8d30-7c5a9e1b4d82";
 const DEV_PASSWORD = "RassaDev2026!";
+
+// Familias module seed (P0): one sample family (jefe = agricultor + vendedor member)
+// with its family credit limit and group conversation, plus a standalone client with an
+// individual limit. Fixed ids keep the seed idempotent.
+const FAMILIA_ID = "a1f2b3c4-5d6e-4f70-8a91-b2c3d4e5f607";
+const FAMILIA_CONVERSACION_ID = "b2c3d4e5-f607-4a81-9b2c-3d4e5f607a18";
+const LIMITE_FAMILIA_ID = "c3d4e5f6-07a1-84b2-9c3d-4e5f607a18b2";
+const LIMITE_CLIENTE_ID = "d4e5f607-a18b-24c3-9d4e-5f607a18b2c3";
+const MEMBRESIA_AGRICULTOR_ID = "e5f607a1-8b2c-4d3e-9f46-07a18b2c3d4e";
+const MEMBRESIA_VENDEDOR_ID = "f607a18b-2c3d-4e5f-807a-18b2c3d4e5f6";
 
 // Insert the business row and its outbox row together; skip both when already seeded.
 async function sembrar(
@@ -218,6 +233,16 @@ async function main(): Promise<void> {
           data: { id: AGRICULTOR_PERSONA_ID, nombre: "Agricultor", apellidoPaterno: "Rassa" },
         }),
       ),
+      sembrar(tx, "persona", VENDEDOR_PERSONA_ID, () =>
+        tx.persona.create({
+          data: { id: VENDEDOR_PERSONA_ID, nombre: "Vendedor", apellidoPaterno: "Rassa" },
+        }),
+      ),
+      sembrar(tx, "persona", CLIENTE_PERSONA_ID, () =>
+        tx.persona.create({
+          data: { id: CLIENTE_PERSONA_ID, nombre: "Cliente", apellidoPaterno: "Rassa" },
+        }),
+      ),
     ]);
 
     await Promise.all([
@@ -255,11 +280,80 @@ async function main(): Promise<void> {
           },
         }),
       ),
+      sembrar(tx, "usuario", VENDEDOR_ID, () =>
+        tx.usuario.create({
+          data: {
+            id: VENDEDOR_ID,
+            correo: "vendedor@rassa.local",
+            passwordHash: hashDev,
+            fkPersona: VENDEDOR_PERSONA_ID,
+            fkRol: idRolPorNombre.get("Vendedor")!,
+          },
+        }),
+      ),
+      sembrar(tx, "usuario", CLIENTE_ID, () =>
+        tx.usuario.create({
+          data: {
+            id: CLIENTE_ID,
+            correo: "cliente@rassa.local",
+            passwordHash: hashDev,
+            fkPersona: CLIENTE_PERSONA_ID,
+            fkRol: idRolPorNombre.get("Cliente")!,
+          },
+        }),
+      ),
     ]);
+
+    // ---- Familias module (P0) ----
+    // Sample family: jefe = agricultor, member = vendedor, family credit limit and its
+    // group conversation (idempotent by fixed ids + guarded inserts).
+    await sembrar(tx, "familia", FAMILIA_ID, () =>
+      tx.familia.create({
+        data: { id: FAMILIA_ID, nombre: "Familia Prueba Nayarit", fkJefeUsuario: AGRICULTOR_ID },
+      }),
+    );
+    await Promise.all([
+      sembrar(tx, "familia_usuario", MEMBRESIA_AGRICULTOR_ID, () =>
+        tx.familiaUsuario.create({
+          data: { id: MEMBRESIA_AGRICULTOR_ID, fkFamilia: FAMILIA_ID, fkUsuario: AGRICULTOR_ID },
+        }),
+      ),
+      sembrar(tx, "familia_usuario", MEMBRESIA_VENDEDOR_ID, () =>
+        tx.familiaUsuario.create({
+          data: { id: MEMBRESIA_VENDEDOR_ID, fkFamilia: FAMILIA_ID, fkUsuario: VENDEDOR_ID },
+        }),
+      ),
+    ]);
+    await sembrar(tx, "limite_credito", LIMITE_FAMILIA_ID, () =>
+      tx.limiteCredito.create({
+        data: { id: LIMITE_FAMILIA_ID, monto: 5000, fkFamilia: FAMILIA_ID },
+      }),
+    );
+    await sembrar(tx, "conversacion", FAMILIA_CONVERSACION_ID, () =>
+      tx.conversacion.create({
+        data: {
+          id: FAMILIA_CONVERSACION_ID,
+          fkFamilia: FAMILIA_ID,
+          tipo: true,
+          integrantes: {
+            create: [
+              { fkUsuario: AGRICULTOR_ID, rol: "admin" },
+              { fkUsuario: VENDEDOR_ID, rol: "miembro" },
+            ],
+          },
+        },
+      }),
+    );
+    // Standalone client with an individual credit limit (M-8 owner XOR: usuario side).
+    await sembrar(tx, "limite_credito", LIMITE_CLIENTE_ID, () =>
+      tx.limiteCredito.create({
+        data: { id: LIMITE_CLIENTE_ID, monto: 1000, fkUsuario: CLIENTE_ID },
+      }),
+    );
   });
 
   console.log(
-    "Dev seed applied: 5 municipios, 10 localidades, 4 categorías, 3 unidades, 4 roles, admin + agricultor + bloqueado",
+    "Dev seed applied: 5 municipios, 10 localidades, 4 categorías, 3 unidades, 4 roles, admin + agricultor + vendedor + cliente + bloqueado, familia con límite y conversación",
   );
   await db.$disconnect();
 }
