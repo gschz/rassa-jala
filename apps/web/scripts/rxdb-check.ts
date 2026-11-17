@@ -1,7 +1,9 @@
 import "fake-indexeddb/auto";
 
-import { createRxDatabase } from "rxdb/plugins/core";
+import { addRxPlugin, createRxDatabase } from "rxdb/plugins/core";
 import { getRxStorageDexie } from "rxdb/plugins/storage-dexie";
+import { wrappedValidateAjvStorage } from "rxdb/plugins/validate-ajv";
+import { RxDBDevModePlugin } from "rxdb/plugins/dev-mode";
 import { indexedDB as fakeIndexedDB, IDBKeyRange as fakeIDBKeyRange } from "fake-indexeddb";
 
 import { collectionCreators, type LocalidadDoc } from "../src/lib/rxdb/database";
@@ -78,5 +80,37 @@ check(
   sorted.length === 1 && sorted[0].id === doc.id,
 );
 await db2.close();
+
+// DVM1 regression check — mirrors the dev browser path (RxDB dev-mode plugin
+// + ajv-validated storage): opening must not throw DVM1, a valid write must
+// pass, and a schema-invalid write must be rejected by the validator.
+addRxPlugin(RxDBDevModePlugin);
+const devDb = await createRxDatabase({
+  name: DB_NAME + "-dvm1",
+  storage: wrappedValidateAjvStorage({ storage: getRxStorageDexie(FAKE_DEXIE_SETTINGS) }),
+  multiInstance: false,
+  ignoreDuplicate: true,
+});
+await devDb.addCollections({ localidades: { ...collectionCreators.localidades } });
+let devWriteOk = false;
+try {
+  await devDb.localidades.insert({ ...doc, id: "dvm1-valid" });
+  devWriteOk = true;
+} catch {
+  devWriteOk = false;
+}
+check("dev-mode validated storage accepts a valid write", devWriteOk);
+let invalidRejected = false;
+try {
+  await devDb.localidades.insert({
+    ...doc,
+    id: "dvm1-invalid",
+    version: "not-a-number",
+  } as unknown as LocalidadDoc);
+} catch {
+  invalidRejected = true;
+}
+check("dev-mode validated storage rejects a schema-invalid write", invalidRejected);
+await devDb.close();
 
 if (failures > 0) process.exit(1);

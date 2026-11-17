@@ -140,7 +140,7 @@ export const authRouter = router({
       where: { id: ctx.user.id },
       include: { rol: true, persona: true },
     });
-    if (!usuario || !usuario.estado) {
+    if (!usuario?.estado) {
       throw new TRPCError({ code: "UNAUTHORIZED", message: "No autenticado" });
     }
     return {

@@ -8,6 +8,7 @@ import {
   type RxJsonSchema,
 } from "rxdb/plugins/core";
 import { getRxStorageDexie } from "rxdb/plugins/storage-dexie";
+import { wrappedValidateAjvStorage } from "rxdb/plugins/validate-ajv";
 import { RxDBDevModePlugin } from "rxdb/plugins/dev-mode";
 
 /**
@@ -180,13 +181,20 @@ const DB_NAME = "rassajala";
 const isDev = import.meta.env.DEV;
 if (isDev) addRxPlugin(RxDBDevModePlugin);
 
+// DVM1: with dev-mode enabled the top-level storage must perform schema
+// validation (rxdb.info/errors#DVM1). Ajv-wrapped Dexie satisfies it in dev;
+// production skips the wrapper for performance, per RxDB guidance.
+const storage = isDev
+  ? wrappedValidateAjvStorage({ storage: getRxStorageDexie() })
+  : getRxStorageDexie();
+
 let dbPromise: Promise<RassaDatabase> | null = null;
 
 /** Singleton app database; collections are created once and reused. */
 export function getDatabase(): Promise<RassaDatabase> {
   dbPromise ??= createRxDatabase<RassaCollections>({
     name: DB_NAME,
-    storage: getRxStorageDexie(),
+    storage,
     ...(isDev ? { ignoreDuplicate: true } : {}),
   }).then(async (db) => {
     await db.addCollections(collectionCreators);

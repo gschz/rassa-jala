@@ -10,26 +10,20 @@ import { Input } from "@rassa-jala/ui/components/input";
 import { Label } from "@rassa-jala/ui/components/label";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
-import { useEffect, useState, type FormEvent } from "react";
-import { useRxQuery } from "rxdb/plugins/react";
+import { useEffect, useState, type SubmitEvent } from "react";
 import type { MangoQuery } from "rxdb/plugins/core";
+import { useRxQuery } from "rxdb/plugins/react";
 import { toast } from "sonner";
 
+import Loader from "@/components/loader";
+import { EstadoSincronizacion } from "@/components/sync/sync-status-bar";
+import { useOnline } from "@/hooks/use-online";
 import { refreshSession } from "@/lib/auth/http";
 import { getAccessToken } from "@/lib/auth/session";
-import {
-  getDatabase,
-  type LocalidadDoc,
-  type MunicipioDoc,
-  type RassaDatabase,
-} from "@/lib/rxdb/database";
+import { type LocalidadDoc, type MunicipioDoc, type RassaDatabase } from "@/lib/rxdb/database";
 import { startReplications } from "@/lib/rxdb/replication";
-import {
-  trackPending,
-  useSyncStatus,
-  type ColeccionSyncStatus,
-  type SyncStatusState,
-} from "@/lib/rxdb/sync-status";
+import { trackPending, useSyncStatus } from "@/lib/rxdb/sync-status";
+import { useDatabase } from "@/lib/rxdb/use-database";
 
 /**
  * Vertical slice — offline catalog page (RxDB + PULL/PUSH replication).
@@ -66,34 +60,6 @@ const LOCALIDADES_QUERY: MangoQuery<LocalidadDoc> = {
   sort: [{ nombre: "asc" }],
 };
 
-function useDatabase(): RassaDatabase | null {
-  const [db, setDb] = useState<RassaDatabase | null>(null);
-  useEffect(() => {
-    let active = true;
-    getDatabase().then((db) => {
-      if (active) setDb(db);
-    });
-    return () => {
-      active = false;
-    };
-  }, []);
-  return db;
-}
-
-function useOnline(): boolean {
-  const [online, setOnline] = useState(navigator.onLine);
-  useEffect(() => {
-    const update = () => setOnline(navigator.onLine);
-    window.addEventListener("online", update);
-    window.addEventListener("offline", update);
-    return () => {
-      window.removeEventListener("online", update);
-      window.removeEventListener("offline", update);
-    };
-  }, []);
-  return online;
-}
-
 function HomeComponent() {
   const db = useDatabase();
 
@@ -107,14 +73,6 @@ function HomeComponent() {
 
   if (!db) return <Loader />;
   return <CatalogoPage db={db} />;
-}
-
-function Loader() {
-  return (
-    <div className="flex h-full items-center justify-center pt-8">
-      <Loader2 className="animate-spin" />
-    </div>
-  );
 }
 
 function CatalogoPage({ db }: Readonly<{ db: RassaDatabase }>) {
@@ -179,70 +137,6 @@ function CatalogoPage({ db }: Readonly<{ db: RassaDatabase }>) {
   );
 }
 
-function EstadoSincronizacion({
-  online,
-  status,
-}: Readonly<{
-  online: boolean;
-  status: SyncStatusState;
-}>) {
-  const pendientes = status.pendingLocalidadIds.length;
-  return (
-    <Card>
-      <CardContent className="flex flex-wrap items-center gap-3">
-        <span className="flex items-center gap-2 text-sm">
-          <span
-            className={`h-2 w-2 rounded-full ${online ? "bg-emerald-500" : "bg-red-500"}`}
-            aria-hidden
-          />
-          {online ? "En línea" : "Sin conexión"}
-        </span>
-        <span className="text-muted-foreground" aria-hidden>
-          |
-        </span>
-        {Object.entries(status.collections).map(([coleccion, estado]) => (
-          <ChipEstado key={coleccion} coleccion={coleccion} estado={estado} />
-        ))}
-        {pendientes > 0 && (
-          <span className="text-xs font-medium text-amber-500">
-            {pendientes} operación{pendientes > 1 ? "es" : ""} pendiente
-            {pendientes > 1 ? "s" : ""} de sincronizar
-          </span>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function ChipEstado({
-  coleccion,
-  estado,
-}: Readonly<{
-  coleccion: string;
-  estado: ColeccionSyncStatus;
-}>) {
-  const label = estado.error
-    ? "Error"
-    : estado.syncing
-      ? "Sincronizando…"
-      : estado.lastSyncAt != null
-        ? `OK ${new Date(estado.lastSyncAt).toLocaleTimeString()}`
-        : "Sin sincronizar";
-  const color = estado.error
-    ? "text-red-500"
-    : estado.syncing
-      ? "text-blue-500"
-      : estado.lastSyncAt != null
-        ? "text-emerald-500"
-        : "text-muted-foreground";
-  return (
-    <span className={`text-xs ${color}`}>
-      {coleccion}: {label}
-      {estado.checkpoint != null ? ` · seq ${estado.checkpoint}` : ""}
-    </span>
-  );
-}
-
 function NuevaLocalidadForm({
   db,
   municipios,
@@ -254,7 +148,7 @@ function NuevaLocalidadForm({
   const [fkMunicipio, setFkMunicipio] = useState("");
   const [guardando, setGuardando] = useState(false);
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     const nombreTrimmed = nombre.trim();
     if (!nombreTrimmed || !fkMunicipio || guardando) return;

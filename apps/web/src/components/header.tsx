@@ -6,7 +6,6 @@ import { trpc } from "@/utils/trpc";
 
 import { Button } from "@rassa-jala/ui/components/button";
 import { ModeToggle } from "./mode-toggle";
-
 /** Session identity + real server-side logout (P0 Autenticación). */
 function Sesion() {
   const session = useSession();
@@ -40,7 +39,14 @@ function Sesion() {
 }
 
 export default function Header() {
-  const links = [{ to: "/", label: "Catálogos" }] as const;
+  const session = useSession();
+  // P0 Catálogos: the admin CRUD surface is hidden from non-admin roles.
+  const links = [
+    { to: "/", label: "Catálogos" },
+    ...(session.user?.rol === "Admin"
+      ? [{ to: "/catalogos", label: "Administración" as const }]
+      : []),
+  ] as const;
 
   return (
     <div>
