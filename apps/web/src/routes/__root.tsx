@@ -1,11 +1,12 @@
 import { Toaster } from "@rassa-jala/ui/components/sonner";
 import type { QueryClient } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
-import { HeadContent, Outlet, createRootRouteWithContext } from "@tanstack/react-router";
+import { HeadContent, Outlet, createRootRouteWithContext, redirect } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 
 import Header from "@/components/header";
 import { ThemeProvider } from "@/components/theme-provider";
+import { getSession } from "@/lib/auth/session";
 import type { trpc } from "@/utils/trpc";
 
 import "../index.css";
@@ -16,6 +17,16 @@ export interface RouterAppContext {
 }
 
 export const Route = createRootRouteWithContext<RouterAppContext>()({
+  // Q-07 forced-change gate (client side): while the session carries
+  // debeCambiarPassword, every navigation lands on /cambiar-password until
+  // auth.changePassword clears the flag. The server enforces the same rule per
+  // procedure (protectedProcedure allowlist); this only shapes the UI flow.
+  beforeLoad: ({ location }) => {
+    const { user } = getSession();
+    if (user?.debeCambiarPassword && location.pathname !== "/cambiar-password") {
+      throw redirect({ to: "/cambiar-password" });
+    }
+  },
   component: RootComponent,
   head: () => ({
     meta: [

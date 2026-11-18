@@ -2,7 +2,11 @@ import { publicProcedure, router } from "../index";
 import { authRouter } from "./auth";
 import { catalogosRouter } from "./catalogos";
 import { familiasRouter } from "./familias";
+import { pedidosRouter } from "./pedidos";
+import { productosRouter } from "./productos";
+import { publicacionesRouter } from "./publicaciones";
 import { syncRouter } from "./sync";
+import { usuariosRouter } from "./usuarios";
 
 export const appRouter = router({
   healthCheck: publicProcedure.query(() => {
@@ -12,5 +16,9 @@ export const appRouter = router({
   sync: syncRouter,
   catalogos: catalogosRouter,
   familias: familiasRouter,
+  usuarios: usuariosRouter,
+  productos: productosRouter,
+  publicaciones: publicacionesRouter,
+  pedidos: pedidosRouter,
 });
 export type AppRouter = typeof appRouter;

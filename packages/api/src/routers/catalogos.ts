@@ -4,7 +4,7 @@ import { z } from "zod";
 import type { Database, Prisma } from "@rassa-jala/db";
 
 import { ROLE, type Role } from "../context";
-import { protectedProcedure, router } from "../index";
+import { protectedProcedure, publicProcedure, router } from "../index";
 
 // Online admin CRUD for the four S1 catalogs (docs/scope.md §3.1 "Catálogos — COMPLETAR").
 // Normative sources: docs/synchronization.md §6/§9 (catalog writes are online-confirm
@@ -325,6 +325,23 @@ export const catalogosRouter = router({
       });
       return filas.map(aDtoLocalidad);
     }),
+
+  // PUBLIC read-only picker for the registration form (Q-05): a brand-new visitor has no
+  // session, so the authenticated PULL/localidadesList cannot feed the localidad select.
+  // Only active rows, minimal fields (no write surface — registration still validates
+  // server-side via usuarios.register).
+  localidadesPublicas: publicProcedure.query(async ({ ctx }) => {
+    const filas = await ctx.db.localidad.findMany({
+      where: { estado: true },
+      include: { municipio: { select: { nombre: true } } },
+      orderBy: { nombre: "asc" },
+    });
+    return filas.map((fila) => ({
+      id: fila.id,
+      nombre: fila.nombre,
+      municipio: fila.municipio.nombre,
+    }));
+  }),
 
   localidadesCreate: protectedProcedure
     .input(z.object({ nombre: NOMBRE, fkMunicipio: ID }))

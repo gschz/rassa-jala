@@ -5,6 +5,7 @@ import type {
   ReplicationPushHandler,
   WithDeleted,
 } from "rxdb/plugins/core";
+import { toast } from "sonner";
 
 import { ENV } from "../../env";
 import { getSession } from "../auth/session";
@@ -16,6 +17,11 @@ import type {
   FamiliaDoc,
   MembresiaDoc,
   LimiteCreditoDoc,
+  ProductoDoc,
+  ImagenDoc,
+  PublicacionDoc,
+  ItemSemanalDoc,
+  PedidoDoc,
   RassaDatabase,
 } from "./database";
 import {
@@ -32,9 +38,11 @@ const PUSH_BATCH_SIZE = 50;
 const RESYNC_INTERVAL_MS = 15_000;
 
 /**
- * Replication wiring for the slice collections (sync doc §14) plus the P0 Familias
- * scoped collections: PULL for all (S1 cache-first), PUSH only for `localidades`
- * (mechanism demo). Scoped collections replicate with a per-user checkpoint (§11).
+ * Replication wiring for the slice collections (sync doc §14), the P0 Familias
+ * scoped collections and the P0 Publicaciones S2 draft push: PULL for all,
+ * PUSH only for `localidades` (mechanism demo) and the `publicaciones`/
+ * `productosSemanales` drafts (real S2 offline writes). Scoped collections
+ * replicate with a per-user checkpoint (§11).
  */
 
 type ReplicationHandle = {
@@ -103,6 +111,77 @@ function pushLocalidadesHandler(): ReplicationPushHandler<LocalidadDoc> {
   };
 }
 
+// S2 draft push (P0 Publicaciones): the operationId is the local write's syncOpId
+// (stable between retries, §7). Pending markers for these collections ride on the doc
+// itself (syncOpId != null until the confirmed state round-trips via PULL).
+function pushDraftsHandler<TDoc extends { id: string; syncOpId?: string; version: number }>(
+  coleccion: Coleccion,
+): ReplicationPushHandler<TDoc> {
+  return async (rows) => {
+    const operaciones: PushOperacion<TDoc>[] = rows.map((row) => ({
+      operationId: row.newDocumentState.syncOpId ?? crypto.randomUUID(),
+      docId: row.newDocumentState.id,
+      op: row.newDocumentState._deleted ? "delete" : row.assumedMasterState ? "update" : "create",
+      nuevoEstado: row.newDocumentState,
+      versionAsumida: row.assumedMasterState ? row.assumedMasterState.version : null,
+    }));
+
+    const resultados = await pushOperaciones<TDoc>(coleccion, operaciones);
+
+    const conflicts: WithDeleted<TDoc>[] = [];
+    for (const resultado of resultados) {
+      if (resultado.estadoServidor && resultado.veredicto !== "aplicada") {
+        conflicts.push(resultado.estadoServidor as WithDeleted<TDoc>);
+      }
+    }
+    const rechazada = resultados.find((r) => r.veredicto === "rechazada");
+    patchStatus(coleccion, {
+      lastSyncAt: Date.now(),
+      error: rechazada
+        ? rechazada.motivo
+          ? `Rechazada: ${rechazada.motivo}`
+          : "Operación rechazada por el servidor"
+        : null,
+    });
+    // §5.1: return ONLY the conflicted/rejected server states; empty array otherwise.
+    return conflicts;
+  };
+}
+
+// P0 Pedidos — S2 creation-in-queue push (database.md §6.2 `pedidos` row): only the
+// offline-created order draft (syncOpId present, `items` attached) travels; the server
+// adjudicates and the verdicts surface to the user (rechazada → toast with motivo).
+function pushPedidosHandler(): ReplicationPushHandler<PedidoDoc> {
+  return async (rows) => {
+    const operaciones: PushOperacion<PedidoDoc>[] = rows.map((row) => ({
+      operationId: row.newDocumentState.syncOpId ?? crypto.randomUUID(),
+      docId: row.newDocumentState.id,
+      op: row.newDocumentState._deleted ? "delete" : row.assumedMasterState ? "update" : "create",
+      nuevoEstado: row.newDocumentState,
+      versionAsumida: row.assumedMasterState ? row.assumedMasterState.version : null,
+    }));
+
+    const resultados = await pushOperaciones<PedidoDoc>("pedidos", operaciones);
+
+    const conflicts: WithDeleted<PedidoDoc>[] = [];
+    for (const resultado of resultados) {
+      if (resultado.estadoServidor && resultado.veredicto !== "aplicada") {
+        conflicts.push(resultado.estadoServidor as WithDeleted<PedidoDoc>);
+      }
+      if (resultado.veredicto === "rechazada") {
+        toast.error(`Pedido rechazado: ${resultado.motivo ?? "sin motivo del servidor"}`);
+      } else if (resultado.veredicto === "aplicada") {
+        toast.success("Pedido confirmado por el servidor");
+      }
+    }
+    patchStatus("pedidos", {
+      lastSyncAt: Date.now(),
+      error: null,
+    });
+    return conflicts;
+  };
+}
+
 function startReplication<TDoc>(
   coleccion: Coleccion,
   collection: RxCollection<TDoc>,
@@ -142,8 +221,9 @@ function startScopedReplication<TDoc>(
   coleccion: Coleccion,
   collection: RxCollection<TDoc>,
   idUsuario: string,
+  push?: ReplicationPushHandler<TDoc>,
 ): ReplicationHandle {
-  return startReplication<TDoc>(coleccion, collection, undefined, `:${idUsuario}@`);
+  return startReplication<TDoc>(coleccion, collection, push, `:${idUsuario}@`);
 }
 
 export type ReplicationSet = {
@@ -158,6 +238,9 @@ export function startReplications(db: RassaDatabase): ReplicationSet {
     startReplication<LocalidadDoc>("localidades", db.localidades, pushLocalidadesHandler()),
     startReplication<CategoriaDoc>("categorias", db.categorias, undefined),
     startReplication<UnidadDoc>("unidades", db.unidades, undefined),
+    // P0 Productos (Q-19): PULL-only global collections — writes are online tRPC.
+    startReplication<ProductoDoc>("productos", db.productos, undefined),
+    startReplication<ImagenDoc>("imagenes", db.imagenes, undefined),
     // Scoped PULL-only collections (P0 Familias): started only with an authenticated
     // identity — without a user there is nothing to scope against.
     ...(idUsuario
@@ -169,6 +252,25 @@ export function startReplications(db: RassaDatabase): ReplicationSet {
             db.limites_credito,
             idUsuario,
           ),
+          // P0 Publicaciones (Q-25): scoped PULL + S2 draft PUSH (borrador docs only).
+          // The `itemsSemanales` collection syncs under the server name
+          // `productosSemanales`.
+          startScopedReplication<PublicacionDoc>(
+            "publicaciones",
+            db.publicaciones,
+            idUsuario,
+            pushDraftsHandler<PublicacionDoc>("publicaciones"),
+          ),
+          startScopedReplication<ItemSemanalDoc>(
+            "productosSemanales",
+            db.itemsSemanales,
+            idUsuario,
+            pushDraftsHandler<ItemSemanalDoc>("productosSemanales"),
+          ),
+          // P0 Pedidos: scoped PULL + the S2 creation push (order drafts only). Lines ride
+          // EMBEDDED in the pedido doc (§6.2 grain; free RxDB 13-collection cap) and the
+          // estado catalog stays server-side (estadoNombre is embedded in every doc).
+          startScopedReplication<PedidoDoc>("pedidos", db.pedidos, idUsuario, pushPedidosHandler()),
         ]
       : []),
   ];

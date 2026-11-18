@@ -48,6 +48,10 @@ model Usuario {
   fkPersona      String        @unique @map("fk_persona") @db.Uuid
   fkRol          String        @map("fk_rol") @db.Uuid
   estado         Boolean       @default(true)
+  // Q-07: forced password change. Set by admin provisioning/reset; cleared by
+  // auth.changePassword. The protectedProcedure gate (packages/api) blocks every
+  // procedure outside the session/password allowlist while this is true.
+  debeCambiarPassword Boolean @default(false) @map("debe_cambiar_password")
   version        Int           @default(1)
   actualizadoEn  DateTime      @default(now()) @updatedAt @map("actualizado_en") @db.Timestamptz(6)
   persona        Persona       @relation(fields: [fkPersona], references: [id], onDelete: Cascade)
@@ -57,6 +61,10 @@ model Usuario {
   membresias       FamiliaUsuario[]
   limitesCredito   LimiteCredito[]
   integraciones    Integrante[]
+  publicaciones    PublicacionSemanal[]
+  // P0 Pedidos (M-12): both sides nullable (SetNull) — orders survive account deletion.
+  pedidosComoCliente PedidoCabecera[] @relation("PedidosCliente")
+  pedidosComoVendedor PedidoCabecera[] @relation("PedidosVendedor")
 
   @@index([fkRol])
   @@map("usuario")

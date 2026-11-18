@@ -6,7 +6,7 @@ import { verifyAccessToken } from "@rassa-jala/api/auth";
 
 import { createCookieStore } from "./cookies";
 import { ENV } from "./env.server";
-import { db } from "./services";
+import { db, storage } from "./services";
 
 // P0 auth: the Bearer access JWT of the Authorization header is verified per request
 // (backend-audit §2.2 AUTH_HEADER_TYPES=Bearer). Absent/invalid/expired → user: null;
@@ -25,6 +25,7 @@ export async function createContext(
   const user = token ? await verifyAccessToken(token, ENV.JWT_ACCESS_SECRET) : null;
   return {
     db,
+    storage,
     user,
     auth: {
       accessSecret: ENV.JWT_ACCESS_SECRET,

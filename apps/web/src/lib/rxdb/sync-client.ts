@@ -35,6 +35,16 @@ const COLECCIONES = [
   "familias",
   "membresias",
   "limites_credito",
+  "productos",
+  "imagenes",
+  // P0 Publicaciones: draft push (S2). The `itemsSemanales` RxDB collection syncs under
+  // the server collection name `productosSemanales` (sync.productosSemanales.pull/push).
+  "publicaciones",
+  "productosSemanales",
+  // P0 Pedidos: S2 creation push + scoped pull. The lines ride embedded in the pedido
+  // doc and the estado catalog stays server-side (free RxDB 13-collection cap), so no
+  // detallesPedido/estadosPedido client collections exist.
+  "pedidos",
 ] as const;
 export type Coleccion = (typeof COLECCIONES)[number];
 

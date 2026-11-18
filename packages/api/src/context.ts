@@ -19,6 +19,18 @@ export type ContextUser = {
   rol: Role;
 };
 
+// D-1 storage capability injected by the transport (apps/server wires the real driver:
+// local disk in dev, Supabase at final integration). This package stays storage-agnostic.
+export type GuardadoStorage = {
+  storageKey: string;
+  url: string;
+};
+
+export type StorageAdapter = {
+  save(data: Uint8Array, ext: string): Promise<GuardadoStorage>;
+  remove(storageKey: string): Promise<void>;
+};
+
 // Cookie capability injected by the transport (apps/server) so this package stays
 // transport-agnostic. set()/delete() queue the operation; the transport flushes them
 // onto the response after the tRPC middleware returns.
@@ -48,6 +60,7 @@ export type Context = {
   db: Database;
   cookies: CookieStore;
   auth: AuthRuntime;
+  storage: StorageAdapter;
   // Null when the Authorization header is absent/invalid/expired; public procedures
   // (login, refresh, healthCheck) still resolve.
   user: ContextUser | null;

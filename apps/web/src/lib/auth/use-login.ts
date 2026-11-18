@@ -19,7 +19,12 @@ export function useLogin(options?: UseLoginOptions) {
     trpc.auth.login.mutationOptions({
       onSuccess: (res) => {
         setSession(res.user, res.accessToken);
-        void navigate({ to: options?.onSuccessRedirectTo ?? "/" });
+        // Q-07: a forced password change parks the user on the gate page until cleared.
+        void navigate({
+          to: res.user.debeCambiarPassword
+            ? "/cambiar-password"
+            : (options?.onSuccessRedirectTo ?? "/"),
+        });
       },
       onError: (err) => setError(err.message),
     }),

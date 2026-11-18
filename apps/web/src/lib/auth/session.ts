@@ -7,7 +7,14 @@ import { useSyncExternalStore } from "react";
  * touches JS: it is an httpOnly cookie issued by the server (F-04 fix — one uniform
  * storage contract for every client, no localStorage/sessionStorage split).
  */
-export type SessionUser = { id: string; email: string; rol: string };
+export type SessionUser = {
+  id: string;
+  email: string;
+  rol: string;
+  // Q-07 forced-change flag from login/refresh/auth.me; cleared client-side after
+  // auth.changePassword succeeds.
+  debeCambiarPassword?: boolean;
+};
 
 export type SessionState = {
   token: string | null;

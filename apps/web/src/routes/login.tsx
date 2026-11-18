@@ -5,7 +5,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@rassa-jala/ui/components/card";
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { Link, createFileRoute, redirect } from "@tanstack/react-router";
 
 import { LoginForm } from "@/components/auth/login-form";
 import { getAccessToken } from "@/lib/auth/session";
@@ -43,6 +43,12 @@ function LoginPage() {
             onPasswordChange={setPassword}
             onSubmit={handleSubmit}
           />
+          <p className="mt-3 text-center text-sm text-muted-foreground">
+            ¿No tienes cuenta?{" "}
+            <Link to="/registro" className="underline">
+              Regístrate
+            </Link>
+          </p>
         </CardContent>
       </Card>
     </div>

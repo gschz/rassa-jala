@@ -9,11 +9,13 @@
     "serve": "vp preview",
     "start": "vp dev",
     "check-types": "vp build && tsc --noEmit",
+    "test": "bun test",
     "generate-pwa-assets": "pwa-assets-generator",
     "env:generate": "varlock codegen"
   },
   "dependencies": {
     "@rassa-jala/api": "workspace:*",
+    "@rassa-jala/db": "workspace:*",
     "@rassa-jala/ui": "workspace:*",
     "@tailwindcss/vite": "^4.3.3",
     "@tanstack/react-query": "^5.104.2",

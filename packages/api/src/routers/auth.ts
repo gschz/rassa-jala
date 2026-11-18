@@ -18,6 +18,7 @@ type UsuarioConRol = {
   correo: string;
   estado: boolean;
   passwordHash: string;
+  debeCambiarPassword: boolean;
   rol: { nombre: string };
 };
 
@@ -35,11 +36,23 @@ const changePasswordSchema = z.object({
 
 // Issues a fresh session pair: opaque refresh token (hashed row + httpOnly cookie) and a
 // signed access JWT. Used by login and by refresh (rotation issues a full new pair).
+// The session payload carries debeCambiarPassword (Q-07) so any client establishment
+// path (login or silent refresh) can drive the forced-change redirect.
 async function crearSesion(
   ctx: SesionInput,
-  usuario: Pick<UsuarioConRol, "id" | "correo"> & { rol: { nombre: string } },
-): Promise<{ accessToken: string; user: { id: string; email: string; rol: Role } }> {
-  const user = { id: usuario.id, email: usuario.correo, rol: usuario.rol.nombre as Role };
+  usuario: Pick<UsuarioConRol, "id" | "correo" | "debeCambiarPassword"> & {
+    rol: { nombre: string };
+  },
+): Promise<{
+  accessToken: string;
+  user: { id: string; email: string; rol: Role; debeCambiarPassword: boolean };
+}> {
+  const user = {
+    id: usuario.id,
+    email: usuario.correo,
+    rol: usuario.rol.nombre as Role,
+    debeCambiarPassword: usuario.debeCambiarPassword,
+  };
   const accessToken = await signAccessToken(user, ctx.auth.accessSecret);
   const refreshToken = generateRefreshToken();
   await ctx.db.refreshToken.create({
@@ -147,10 +160,13 @@ export const authRouter = router({
       id: usuario.id,
       email: usuario.correo,
       rol: usuario.rol.nombre,
+      estado: usuario.estado,
+      debeCambiarPassword: usuario.debeCambiarPassword,
       persona: {
         nombre: usuario.persona.nombre,
         apellidoPaterno: usuario.persona.apellidoPaterno,
         apellidoMaterno: usuario.persona.apellidoMaterno,
+        fkLocalidad: usuario.persona.fkLocalidad,
       },
     };
   }),
@@ -171,7 +187,12 @@ export const authRouter = router({
         });
       }
       const passwordHash = await Bun.password.hash(input.newPassword, { algorithm: "argon2id" });
-      await ctx.db.usuario.update({ where: { id: usuario.id }, data: { passwordHash } });
+      // Clearing the Q-07 flag releases the protectedProcedure forced-change gate; the
+      // session revocation below still forces a fresh login on every device.
+      await ctx.db.usuario.update({
+        where: { id: usuario.id },
+        data: { passwordHash, debeCambiarPassword: false },
+      });
       await revocarSesiones(ctx, usuario.id);
       ctx.cookies.delete(REFRESH_COOKIE);
       return { ok: true };

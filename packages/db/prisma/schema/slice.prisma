@@ -38,6 +38,7 @@ model CategoriaProducto {
   estado        Boolean  @default(true)
   version       Int      @default(1)
   actualizadoEn DateTime @default(now()) @updatedAt @map("actualizado_en") @db.Timestamptz(6)
+  productos     Producto[]
 
   @@map("categoria_producto")
 }
@@ -51,6 +52,8 @@ model Unidad {
   estado        Boolean  @default(true)
   version       Int      @default(1)
   actualizadoEn DateTime @default(now()) @updatedAt @map("actualizado_en") @db.Timestamptz(6)
+  productos     Producto[]
+  productosSemanales ProductoSemanal[]
 
   @@map("unidad")
 }

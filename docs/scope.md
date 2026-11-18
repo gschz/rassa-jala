@@ -65,15 +65,15 @@ Derivado de audit-findings.md §5 (29 preguntas genuinamente abiertas; Q-01…Q-
 
 **Bloquean módulos P0** — decisión requerida antes de implementar el módulo afectado:
 
-| Módulo                       | Preguntas  | Qué bloquea                                                                                                                |
-| ---------------------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------- |
-| Productos                    | Q-19       | Quién puede escribir en el catálogo (propietario del CRUD).                                                                |
-| Catálogos                    | Q-29       | Implementar o descartar el CRUD de administrador.                                                                          |
-| Pedidos / Pagos              | Q-14       | Reglas de redondeo del IVA antes de fijar el módulo de dinero.                                                             |
-| Pedidos                      | Q-06, Q-10 | Asignación de vendedor a pedidos y aprovisionamiento de límites de crédito (sin API de escritura en el sistema original).  |
-| Usuarios y roles             | Q-05, Q-07 | Aprovisionamiento de vendedores; necesidad real de flujos de correo.                                                       |
-| Publicaciones semanales      | Q-25       | Rango de semana 1–52 vs ISO 53 en el diseño del ciclo semanal.                                                             |
-| Infraestructura offline/sync | Q-21, Q-27 | Calidad de los datos reales (duplicados de `familia_usuario`, stock negativo, huérfanos) para el diseño de la replicación. |
+| Módulo                       | Preguntas  | Qué bloquea                                                                                                                                                                                                                                       |
+| ---------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Productos                    | Q-19       | RESUELTA (2026-11-17): producto maestro = CRUD exclusivo Admin; producto_semanal = gestionado por el Agricultor; Vendedor no administra maestros ni publica.                                                                                      |
+| Catálogos                    | Q-29       | RESUELTA (2026-11-17): CRUD admin implementado contra endpoints reales (feature p0-catalogos).                                                                                                                                                    |
+| Pedidos / Pagos              | Q-14       | RESUELTA (2026-11-17): tasa 16% + redondeo HALF_UP a 2 decimales sobre el subtotal completo del pedido; snapshot persistido; prohibido float/Number como autoridad monetaria; no recalcular históricos.                                           |
+| Pedidos                      | Q-06, Q-10 | RESUELTAS (2026-11-17): reclamación atómica de pedidos por Vendedores activos (fk_vendedor NULL al crear, Admin puede reasignar, pedido presencial autoasigna al Vendedor) + límite de crédito con propietario único familia                      | usuario (Q-10). |
+| Usuarios y roles             | Q-05, Q-07 | RESUELTAS (2026-11-17): registro público crea Clientes; Vendedores y Agricultores aprovisionados por Admin; sin correo en MVP (login/cambio de contraseña/restablecimiento administrativo controlado; sin contraseñas temporales en texto plano). |
+| Publicaciones semanales      | Q-25       | RESUELTA (2026-11-17): calendario ISO 8601 con semanas 1–53; ciclo identificado por su fecha de lunes; unicidad por (agricultor, fecha de ciclo); publicación solo lunes en TZ America/Mazatlan.                                                  |
+| Infraestructura offline/sync | Q-21, Q-27 | EN CURSO (2026-11-17): revisión de solo lectura de la base entregada (rassa_jala_db) en marcha; sin limpiezas automáticas; hallazgos a clasificar en database.md.                                                                                 |
 
 **Aplazables** — no bloquean el inicio: Q-08 (chat en tiempo real, P2), Q-09 (Recibo), Q-11, Q-12 (despliegue), Q-13, Q-15, Q-16, Q-17, Q-18, Q-20, Q-23 (liquidaciones, P1), Q-24, Q-26, Q-28 (notificaciones, P2), Q-30, Q-31, Q-32, Q-33. La lista completa con evidencia y etiquetas está en audit-findings.md §5.
 
@@ -90,7 +90,7 @@ Debe completarse para considerar operativo el sistema. Filas de la tabla §3.1 a
 - Productos — VALIDAR (F-17/Q-19).
 - Publicaciones — CONSERVAR (Q-25).
 - Pedidos — CORREGIR (F-13/F-14).
-- Pagos y recibos — CONSERVAR reforzado (F-05/F-07; Q-14).
+- Pagos y recibos — CONSERVAR reforzado (F-05/F-07; IVA 16% + redondeo HALF_UP 2 dec, Q-14/D-3 resueltas).
 - Recolecciones — CONSERVAR (F-27).
 - PWA/instalación — NUEVA (F-23).
 - Integridad financiera — transversal: filas Pedidos, Pagos y recibos y Mermas (F-05/F-06/F-07).
@@ -168,6 +168,10 @@ No se permite simplificar eliminando controles financieros, permisos o validacio
 - Estados de carga y error.
 - Validaciones comprensibles.
 - Ninguna operación pendiente debe presentarse como confirmada.
+
+### Entregable académico
+
+- Reporte técnico detallado con capturas del desarrollo y funcionamiento de la PWA (requisito del proyecto): se elabora al cierre con evidencia de los módulos implementados (navegador online/offline, sincronización, PostgreSQL).
 
 ## 7. Criterio de finalización
 

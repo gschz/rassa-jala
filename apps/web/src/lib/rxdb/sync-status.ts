@@ -36,6 +36,11 @@ const COLECCIONES: readonly Coleccion[] = [
   "familias",
   "membresias",
   "limites_credito",
+  "productos",
+  "imagenes",
+  "publicaciones",
+  "productosSemanales",
+  "pedidos",
 ];
 
 let state: SyncStatusState = {
