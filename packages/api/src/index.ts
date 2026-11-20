@@ -47,3 +47,5 @@ export const protectedProcedure = t.procedure.use(async (opts) => {
   // context user role on every protected call.
   return next({ ctx: { ...ctx, user: { ...ctx.user, rol: usuario.rol.nombre as Role } } });
 });
+
+export { appRouter, type AppRouter } from "./routers/index";

@@ -14,6 +14,7 @@ import {
   mondayOfBusinessWeek,
 } from "../src/iso-semana";
 import { ESTADO_PEDIDO } from "../src/estados-pedido";
+import { TIPO_PAGO } from "../src/tipos-pago";
 
 const db = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
@@ -228,6 +229,13 @@ const ESTADOS_PEDIDO = [
   { nombre: ESTADO_PEDIDO.ACTIVO, orden: 7 },
 ] as const;
 
+// Pagos module seed (P0): tipo_pago lookup (M-13)
+const TIPOS_PAGO = [
+  { nombre: TIPO_PAGO.EFECTIVO },
+  { nombre: TIPO_PAGO.TRANSFERENCIA },
+  { nombre: TIPO_PAGO.DEPOSITO },
+] as const;
+
 // Insert the business row and its outbox row together; skip both when already seeded.
 async function seed(
   tx: Tx,
@@ -268,6 +276,26 @@ async function main(): Promise<void> {
       });
       await seed(tx, "estado_pedido", fila.id, () => Promise.resolve());
     }
+
+    // ---- Pagos module (P0): tipo_pago catalog + folio secuencias (M-13) ----
+    for (const tipo of TIPOS_PAGO) {
+      const fila = await tx.tipoPago.upsert({
+        where: { nombre: tipo.nombre },
+        update: {},
+        create: { nombre: tipo.nombre },
+      });
+      await seed(tx, "tipo_pago", fila.id, () => Promise.resolve());
+    }
+    await tx.folioSecuencia.upsert({
+      where: { nombre: "pago" },
+      update: {},
+      create: { nombre: "pago", siguiente: 1 },
+    });
+    await tx.folioSecuencia.upsert({
+      where: { nombre: "recibo" },
+      update: {},
+      create: { nombre: "recibo", siguiente: 1 },
+    });
 
     const idsMunicipio = new Map(MUNICIPIOS.map((m) => [m.nombre, m.id]));
 

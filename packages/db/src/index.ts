@@ -34,3 +34,6 @@ export {
   ORIGEN_PEDIDO,
 } from "./estados-pedido";
 export type { EstadoPedido, OrigenPedido } from "./estados-pedido";
+// Payment types catalog (P0 Pagos, M-13) — shared pure constants.
+export { TIPO_PAGO } from "./tipos-pago";
+export type { TipoPagoNombre } from "./tipos-pago";

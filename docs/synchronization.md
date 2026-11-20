@@ -207,6 +207,7 @@ Tres carriles concretos, alineados con `docs/database.md` §6.2 (columna "Escrit
 - **Lectura offline:** información previamente sincronizada y permitida por los permisos del usuario.
 - **Escritura offline (cola):** solo operaciones cuyo impacto puede gestionarse de manera segura con cola local + validación central al sincronizar (borradores, mensajes, creación de pedidos).
 - **Confirmación online:** pagos, transiciones de pedidos, movimientos de inventario, liquidaciones, cortes, operaciones financieras — nunca viajan como documento crudo por el push de replicación.
+- **Cancelación de pedidos y regla de pago (Decisión 2026-11-19, Opción A):** La cancelación de un pedido es una operación online con serialización atómica (`FOR UPDATE` en `pedido_cabecera`). Si el pedido cuenta con un registro de `pago` asociado, la cancelación es rechazada (HTTP 409 / CONFLICT) sin alterar estado, sin restaurar stock y sin modificar pago ni recibo (Admin no omite la regla).
 
 Esta clasificación se ajustará a las reglas reales del negocio conforme se cierren Q-19/Q-29 (escritura de `producto`/catálogos, D-9).
 

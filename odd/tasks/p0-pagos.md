@@ -38,8 +38,8 @@ Forecast: ~1200-1600 authored lines. Strategy: ask-on-risk (default); agents cre
 ## Checklist
 
 - [x] T1 tracker — 2026-11-18
-- [ ] T2 pagos module (delegated)
-- [ ] T3 gate + close
+- [x] T2 pagos module (delegated) — 2026-11-19
+- [x] T3 gate + close — 2026-11-19
 
 ## Acceptance criteria
 
@@ -54,3 +54,5 @@ Forecast: ~1200-1600 authored lines. Strategy: ask-on-risk (default); agents cre
 ## Progress
 
 - T1 done 2026-11-18 (tracker created; pedidos closed with ~50 proofs).
+- T2 done 2026-11-19 (pagos.prisma schema, seed, pedidos credit release calculation refined to 'pendiente' only, pagosRouter with advisory-locked folios and snapshot receipts, Web UI with payment registration, delivery, and receipt modals, database.md M-13 documented).
+- T3 done 2026-11-19 (migration `20261119205050_add_pagos_base` applied with CHECK `pago_monto_positivo`, seed ×2 idempotent, decision Opción A implemented blocking cancel on paid orders with 409 and FOR UPDATE concurrency lock, 15/15 tests in `apps/web/e2e/pagos.test.ts`, root test suite 93/93 pass ×2, rxdb-check 5 pass, slice-e2e 9 points pass, check/lint/check-types/build clean).

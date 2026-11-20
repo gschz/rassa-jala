@@ -2,6 +2,7 @@ import { publicProcedure, router } from "../index";
 import { authRouter } from "./auth";
 import { catalogosRouter } from "./catalogos";
 import { familiasRouter } from "./familias";
+import { pagosRouter } from "./pagos";
 import { pedidosRouter } from "./pedidos";
 import { productosRouter } from "./productos";
 import { publicacionesRouter } from "./publicaciones";
@@ -20,5 +21,6 @@ export const appRouter = router({
   productos: productosRouter,
   publicaciones: publicacionesRouter,
   pedidos: pedidosRouter,
+  pagos: pagosRouter,
 });
 export type AppRouter = typeof appRouter;

@@ -16,6 +16,7 @@ import { toast } from "sonner";
 
 import { refreshSession } from "@/lib/auth/http";
 import { getAccessToken, useSession } from "@/lib/auth/session";
+import { ReciboModal } from "@/components/recibo-modal";
 import { type PedidoDoc, type RassaDatabase } from "@/lib/rxdb/database";
 import { startReplications, type ReplicationSet } from "@/lib/rxdb/replication";
 import { useDatabase } from "@/lib/rxdb/use-database";
@@ -96,6 +97,7 @@ function PaginaMisPedidos({
   const session = useSession();
   const pedidos = useRxQuery<PedidoDoc>({ collection: db.pedidos, query: PEDIDOS_QUERY });
   const [detalleAbierto, setDetalleAbierto] = useState<string | null>(null);
+  const [reciboPedidoId, setReciboPedidoId] = useState<string | null>(null);
 
   const cancelar = useMutation(
     trpc.pedidos.cancelar.mutationOptions({
@@ -172,6 +174,11 @@ function PaginaMisPedidos({
                     <Button variant="outline" size="sm" onClick={() => setDetalleAbierto(p.id)}>
                       Detalle
                     </Button>
+                    {(p.estadoNombre === "confirmado" || p.estadoNombre === "entregado") && (
+                      <Button variant="outline" size="sm" onClick={() => setReciboPedidoId(p.id)}>
+                        Ver Recibo
+                      </Button>
+                    )}
                     {puedeCancelar(p) && (
                       <Button
                         variant="destructive"
@@ -249,6 +256,10 @@ function PaginaMisPedidos({
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {reciboPedidoId && (
+        <ReciboModal pedidoId={reciboPedidoId} onClose={() => setReciboPedidoId(null)} />
       )}
     </div>
   );

@@ -18,6 +18,9 @@ import { toast } from "sonner";
 
 import { refreshSession } from "@/lib/auth/http";
 import { getAccessToken, useSession } from "@/lib/auth/session";
+import { useOnline } from "@/hooks/use-online";
+import { PagoModal } from "@/components/pago-modal";
+import { ReciboModal } from "@/components/recibo-modal";
 import {
   type ItemSemanalDoc,
   type PedidoDoc,
@@ -180,7 +183,13 @@ function PanelVendedor({
           resincronizar={resincronizar}
         />
       )}
-      {pestana === "mios" && <ListaPedidos pedidos={misPedidos} titulo="Pedidos asignados a ti" />}
+      {pestana === "mios" && (
+        <ListaPedidos
+          pedidos={misPedidos}
+          titulo="Pedidos asignados a ti"
+          resincronizar={resincronizar}
+        />
+      )}
       {pestana === "presencial" && <FormaPresencial db={db} resincronizar={resincronizar} />}
     </div>
   );
@@ -264,7 +273,31 @@ function ListaDisponibles({
   );
 }
 
-function ListaPedidos({ pedidos, titulo }: Readonly<{ pedidos: PedidoDoc[]; titulo: string }>) {
+function ListaPedidos({
+  pedidos,
+  titulo,
+  resincronizar,
+}: Readonly<{
+  pedidos: PedidoDoc[];
+  titulo: string;
+  resincronizar: () => void;
+}>) {
+  const isOnline = useOnline();
+  const [pedidoParaPagar, setPedidoParaPagar] = useState<{ id: string; total: string } | null>(
+    null,
+  );
+  const [reciboPedidoId, setReciboPedidoId] = useState<string | null>(null);
+
+  const marcarEntregado = useMutation(
+    trpc.pagos.marcarEntregado.mutationOptions({
+      onSuccess: () => {
+        toast.success("Pedido marcado como entregado");
+        resincronizar();
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+
   if (pedidos.length === 0) {
     return (
       <Card>
@@ -276,23 +309,67 @@ function ListaPedidos({ pedidos, titulo }: Readonly<{ pedidos: PedidoDoc[]; titu
   }
   return (
     <div className="space-y-2">
-      {pedidos.map((p) => (
-        <Card key={p.id}>
-          <CardContent className="flex items-center justify-between gap-2 p-4">
-            <div>
-              <p className="text-sm font-medium">
-                #{p.id.slice(0, 8)} · {ETIQUETA_ESTADO[p.estadoNombre] ?? p.estadoNombre}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {p.origen === "presencial"
-                  ? `Presencial${p.clienteNombre ? ` · ${p.clienteNombre}` : ""}`
-                  : `Digital${p.fkCliente ? ` · cliente ${p.fkCliente.slice(0, 8)}` : ""}`}
-              </p>
-            </div>
-            <p className="font-semibold">${p.total}</p>
-          </CardContent>
-        </Card>
-      ))}
+      {pedidos.map((p) => {
+        const esPendiente = p.estadoNombre === "pendiente";
+        const esConfirmado = p.estadoNombre === "confirmado";
+        const tieneRecibo = p.estadoNombre === "confirmado" || p.estadoNombre === "entregado";
+
+        return (
+          <Card key={p.id}>
+            <CardContent className="flex flex-wrap items-center justify-between gap-2 p-4">
+              <div>
+                <p className="text-sm font-medium">
+                  #{p.id.slice(0, 8)} · {ETIQUETA_ESTADO[p.estadoNombre] ?? p.estadoNombre}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {p.origen === "presencial"
+                    ? `Presencial${p.clienteNombre ? ` · ${p.clienteNombre}` : ""}`
+                    : `Digital${p.fkCliente ? ` · cliente ${p.fkCliente.slice(0, 8)}` : ""}`}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="font-semibold">${p.total}</span>
+                {esPendiente && (
+                  <Button
+                    size="sm"
+                    disabled={!isOnline}
+                    onClick={() => setPedidoParaPagar({ id: p.id, total: p.total })}
+                  >
+                    Registrar Pago
+                  </Button>
+                )}
+                {esConfirmado && (
+                  <Button
+                    size="sm"
+                    disabled={!isOnline || marcarEntregado.isPending}
+                    onClick={() => marcarEntregado.mutate({ fkPedido: p.id })}
+                  >
+                    Marcar Entregado
+                  </Button>
+                )}
+                {tieneRecibo && (
+                  <Button variant="outline" size="sm" onClick={() => setReciboPedidoId(p.id)}>
+                    Ver Recibo
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })}
+
+      {pedidoParaPagar && (
+        <PagoModal
+          pedidoId={pedidoParaPagar.id}
+          total={pedidoParaPagar.total}
+          onClose={() => setPedidoParaPagar(null)}
+          onSuccess={() => resincronizar()}
+        />
+      )}
+
+      {reciboPedidoId && (
+        <ReciboModal pedidoId={reciboPedidoId} onClose={() => setReciboPedidoId(null)} />
+      )}
     </div>
   );
 }

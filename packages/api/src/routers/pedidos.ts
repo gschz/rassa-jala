@@ -190,6 +190,160 @@ export type EntradaAdjudicacion = {
   docId?: string;
 };
 
+type SemanalConRelaciones = Prisma.ProductoSemanalGetPayload<{
+  include: {
+    producto: { select: { nombre: true; estado: true } };
+    publicacion: { select: { estado: true } };
+  };
+}>;
+
+async function validarYObtenerSemanales(
+  tx: Prisma.TransactionClient,
+  items: EntradaAdjudicacion["items"],
+): Promise<Map<string, SemanalConRelaciones>> {
+  const ids = items.map((i) => i.fkProductoSemanal);
+  if (new Set(ids).size !== ids.length) {
+    throw new Rechazo("No se permiten productos duplicados en un mismo pedido");
+  }
+  const semanales = await tx.productoSemanal.findMany({
+    where: { id: { in: ids } },
+    include: {
+      producto: { select: { nombre: true, estado: true } },
+      publicacion: { select: { estado: true } },
+    },
+  });
+  const semanalPorId = new Map(semanales.map((s) => [s.id, s] as const));
+  for (const item of items) {
+    const semanal = semanalPorId.get(item.fkProductoSemanal);
+    if (!semanal) {
+      throw new Rechazo("Producto semanal no encontrado");
+    }
+    const nombre = semanal.producto.nombre;
+    if (semanal.estado !== "activo") {
+      throw new Rechazo(`El producto '${nombre}' ya no está activo`);
+    }
+    if (semanal.publicacion.estado !== "publicado") {
+      throw new Rechazo(`La publicación del producto '${nombre}' ya no está disponible`);
+    }
+    if (!semanal.producto.estado) {
+      throw new Rechazo(`El producto del catálogo '${nombre}' ya no está activo`);
+    }
+  }
+  return semanalPorId;
+}
+
+function calcularTotalesPedido(
+  items: EntradaAdjudicacion["items"],
+  semanalPorId: Map<string, SemanalConRelaciones>,
+) {
+  const importes = items.map((item) => {
+    const semanal = semanalPorId.get(item.fkProductoSemanal);
+    if (!semanal) throw new Rechazo("Producto semanal no encontrado");
+    const precioCents = aCentavos(semanal.precio.toFixed(2));
+    return importeDe(precioCents, item.cantidad);
+  });
+  const subtotalCents = sumaCentavos(importes);
+  const ivaCents = ivaDe(subtotalCents);
+  const totalCents = totalDe(subtotalCents, ivaCents);
+  return { subtotalCents, ivaCents, totalCents };
+}
+
+async function validarCreditoCliente(
+  tx: Prisma.TransactionClient,
+  fkCliente: string,
+  totalCents: number,
+): Promise<void> {
+  const membresia = await tx.familiaUsuario.findFirst({
+    where: { fkUsuario: fkCliente, estado: true },
+    select: { fkFamilia: true },
+  });
+  let consumidores: string[];
+  let limite: { monto: Prisma.Decimal } | null;
+  if (membresia) {
+    const miembros = await tx.familiaUsuario.findMany({
+      where: { fkFamilia: membresia.fkFamilia, estado: true },
+      select: { fkUsuario: true },
+    });
+    consumidores = miembros.map((m) => m.fkUsuario);
+    limite = await tx.limiteCredito.findFirst({
+      where: { fkFamilia: membresia.fkFamilia, estado: true },
+      select: { monto: true },
+    });
+  } else {
+    consumidores = [fkCliente];
+    limite = await tx.limiteCredito.findFirst({
+      where: { fkUsuario: fkCliente, estado: true },
+      select: { monto: true },
+    });
+  }
+  if (!limite) {
+    throw new Rechazo("No tiene límite de crédito asignado");
+  }
+  const usados = await tx.pedidoCabecera.findMany({
+    where: { fkCliente: { in: consumidores } },
+    select: { total: true, estadoPedido: { select: { nombre: true } } },
+  });
+  const usoCents = sumaCentavos(
+    usados
+      .filter((p) => p.estadoPedido.nombre === ESTADO_PEDIDO.PENDIENTE)
+      .map((p) => aCentavos(p.total.toFixed(2))),
+  );
+  const limiteCents = aCentavos(limite.monto.toFixed(2));
+  if (usoCents + totalCents > limiteCents) {
+    throw new Rechazo(
+      `Límite de crédito insuficiente (usado ${aDecimal(usoCents)} de ${aDecimal(limiteCents)})`,
+    );
+  }
+}
+
+async function decrementarStockItems(
+  tx: Prisma.TransactionClient,
+  items: EntradaAdjudicacion["items"],
+  semanalPorId: Map<string, SemanalConRelaciones>,
+): Promise<void> {
+  const decrements = await Promise.all(
+    items.map(async (item) => {
+      const semanal = semanalPorId.get(item.fkProductoSemanal);
+      if (!semanal) throw new Rechazo("Producto semanal no encontrado");
+      const aplicadas = await tx.productoSemanal.updateMany({
+        where: { id: item.fkProductoSemanal, stock: { gte: item.cantidad } },
+        data: { stock: { decrement: item.cantidad }, version: { increment: 1 } },
+      });
+      return { aplicadas, nombre: semanal.producto.nombre };
+    }),
+  );
+  for (const dec of decrements) {
+    if (dec.aplicadas.count === 0) {
+      throw new Rechazo(`Stock insuficiente para '${dec.nombre}'`);
+    }
+  }
+}
+
+async function crearDetallesPedido(
+  tx: Prisma.TransactionClient,
+  idPedido: string,
+  items: EntradaAdjudicacion["items"],
+  semanalPorId: Map<string, SemanalConRelaciones>,
+): Promise<FilaDetalle[]> {
+  return Promise.all(
+    items.map(async (item) => {
+      const semanal = semanalPorId.get(item.fkProductoSemanal);
+      if (!semanal) throw new Rechazo("Producto semanal no encontrado");
+      const precioCents = aCentavos(semanal.precio.toFixed(2));
+      return tx.detallePedido.create({
+        data: {
+          fkPedido: idPedido,
+          fkProductoSemanal: item.fkProductoSemanal,
+          nombreProducto: semanal.producto.nombre,
+          cantidad: item.cantidad,
+          precioUnitario: aDecimal(precioCents),
+          importe: aDecimal(importeDe(precioCents, item.cantidad)),
+        },
+      });
+    }),
+  );
+}
+
 /**
  * Q-06/Q-10/Q-14 central adjudication — used by checkout, pedidoPresencial and the
  * pedidos push (sync.ts). Steps inside ONE tx:
@@ -218,104 +372,22 @@ export async function adjudicarPedido(
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('pedidos_adjudicacion'))`;
 
   // b. Items: duplicates first (legacy parity), then per-item validation.
-  const ids = entrada.items.map((i) => i.fkProductoSemanal);
-  if (new Set(ids).size !== ids.length) {
-    throw new Rechazo("No se permiten productos duplicados en un mismo pedido");
-  }
-  const semanales = await tx.productoSemanal.findMany({
-    where: { id: { in: ids } },
-    include: {
-      producto: { select: { nombre: true, estado: true } },
-      publicacion: { select: { estado: true } },
-    },
-  });
-  const semanalPorId = new Map(semanales.map((s) => [s.id, s] as const));
-  for (const item of entrada.items) {
-    const semanal = semanalPorId.get(item.fkProductoSemanal);
-    if (!semanal) {
-      throw new Rechazo("Producto semanal no encontrado");
-    }
-    const nombre = semanal.producto.nombre;
-    if (semanal.estado !== "activo") {
-      throw new Rechazo(`El producto '${nombre}' ya no está activo`);
-    }
-    if (semanal.publicacion.estado !== "publicado") {
-      throw new Rechazo(`La publicación del producto '${nombre}' ya no está disponible`);
-    }
-    if (!semanal.producto.estado) {
-      throw new Rechazo(`El producto del catálogo '${nombre}' ya no está activo`);
-    }
-  }
+  const semanalPorId = await validarYObtenerSemanales(tx, entrada.items);
 
   // e. Money (Q-14): decimal string → integer cents → exact integer math.
-  const importes = entrada.items.map((item) => {
-    const semanal = semanalPorId.get(item.fkProductoSemanal);
-    if (!semanal) throw new Rechazo("Producto semanal no encontrado");
-    const precioCents = aCentavos(semanal.precio.toFixed(2));
-    return importeDe(precioCents, item.cantidad);
-  });
-  const subtotalCents = sumaCentavos(importes);
-  const ivaCents = ivaDe(subtotalCents);
-  const totalCents = totalDe(subtotalCents, ivaCents);
+  const { subtotalCents, ivaCents, totalCents } = calcularTotalesPedido(
+    entrada.items,
+    semanalPorId,
+  );
 
   // c. Credit (Q-10) — only account-bound orders consume credit; clientes físicos
   //    (fk_cliente NULL) never do. Owner: active family → family limit; else individual.
   if (entrada.fkCliente !== null) {
-    const membresia = await tx.familiaUsuario.findFirst({
-      where: { fkUsuario: entrada.fkCliente, estado: true },
-      select: { fkFamilia: true },
-    });
-    let consumidores: string[];
-    let limite: { monto: Prisma.Decimal } | null;
-    if (membresia) {
-      const miembros = await tx.familiaUsuario.findMany({
-        where: { fkFamilia: membresia.fkFamilia, estado: true },
-        select: { fkUsuario: true },
-      });
-      consumidores = miembros.map((m) => m.fkUsuario);
-      limite = await tx.limiteCredito.findFirst({
-        where: { fkFamilia: membresia.fkFamilia, estado: true },
-        select: { monto: true },
-      });
-    } else {
-      consumidores = [entrada.fkCliente];
-      limite = await tx.limiteCredito.findFirst({
-        where: { fkUsuario: entrada.fkCliente, estado: true },
-        select: { monto: true },
-      });
-    }
-    if (!limite) {
-      throw new Rechazo("No tiene límite de crédito asignado");
-    }
-    const usados = await tx.pedidoCabecera.findMany({
-      where: { fkCliente: { in: consumidores } },
-      select: { total: true, estadoPedido: { select: { nombre: true } } },
-    });
-    const usoCents = sumaCentavos(
-      usados
-        .filter((p) => p.estadoPedido.nombre !== ESTADO_PEDIDO.CANCELADO)
-        .map((p) => aCentavos(p.total.toFixed(2))),
-    );
-    const limiteCents = aCentavos(limite.monto.toFixed(2));
-    if (usoCents + totalCents > limiteCents) {
-      throw new Rechazo(
-        `Límite de crédito insuficiente (usado ${aDecimal(usoCents)} de ${aDecimal(limiteCents)})`,
-      );
-    }
+    await validarCreditoCliente(tx, entrada.fkCliente, totalCents);
   }
 
   // d. Stock — atomic conditional decrement; 0 rows means insufficient (or vanished).
-  for (const item of entrada.items) {
-    const semanal = semanalPorId.get(item.fkProductoSemanal);
-    if (!semanal) throw new Rechazo("Producto semanal no encontrado");
-    const aplicadas = await tx.productoSemanal.updateMany({
-      where: { id: item.fkProductoSemanal, stock: { gte: item.cantidad } },
-      data: { stock: { decrement: item.cantidad }, version: { increment: 1 } },
-    });
-    if (aplicadas.count === 0) {
-      throw new Rechazo(`Stock insuficiente para '${semanal.producto.nombre}'`);
-    }
-  }
+  await decrementarStockItems(tx, entrada.items, semanalPorId);
 
   // f. Order + details + historial + outbox — ONE tx.
   const idPendiente = await idEstado(tx, ESTADO_PEDIDO.PENDIENTE);
@@ -334,24 +406,7 @@ export async function adjudicarPedido(
       notas: entrada.notas,
     },
   });
-  const filasDetalle: FilaDetalle[] = [];
-  for (const item of entrada.items) {
-    const semanal = semanalPorId.get(item.fkProductoSemanal);
-    if (!semanal) throw new Rechazo("Producto semanal no encontrado");
-    const precioCents = aCentavos(semanal.precio.toFixed(2));
-    filasDetalle.push(
-      await tx.detallePedido.create({
-        data: {
-          fkPedido: pedido.id,
-          fkProductoSemanal: item.fkProductoSemanal,
-          nombreProducto: semanal.producto.nombre,
-          cantidad: item.cantidad,
-          precioUnitario: aDecimal(precioCents),
-          importe: aDecimal(importeDe(precioCents, item.cantidad)),
-        },
-      }),
-    );
-  }
+  const filasDetalle = await crearDetallesPedido(tx, pedido.id, entrada.items, semanalPorId);
   await tx.historialEstadoPedido.create({
     data: { fkPedido: pedido.id, fkEstado: idPendiente, actor: entrada.actor },
   });
@@ -376,6 +431,16 @@ export async function adjudicarPedido(
 }
 
 // ---- procedures ----
+
+function obtenerFiltroMisPedidos(rol: Role, idUsuario: string): Prisma.PedidoCabeceraWhereInput {
+  if (rol === ROLE.ADMIN) {
+    return {};
+  }
+  if (rol === ROLE.VENDEDOR) {
+    return { fkVendedor: idUsuario };
+  }
+  return { fkCliente: idUsuario };
+}
 
 export const pedidosRouter = router({
   // Client online checkout: fk_cliente = authenticated identity, origen digital.
@@ -491,16 +556,33 @@ export const pedidosRouter = router({
   // Cancel (legacy ESTADOS_CANCELABLES parity + module relaxation): client cancels its
   // OWN order while 'pendiente'; seller cancels ASSIGNED orders in cancelable states;
   // Admin any cancelable. Restores stock (+cantidad per line), appends historial, outbox.
+  // Financial invariant: an order with a registered payment CANNOT be cancelled by anyone
+  // (not even Admin) — throws CONFLICT.
   cancelar: protectedProcedure
     .input(z.object({ pedidoId: ID, version: VERSION }))
     .mutation(async ({ input, ctx }) => {
       return ctx.db.$transaction(async (tx) => {
+        // Concurrency lock: serialize against concurrent payments and other mutations
+        await tx.$executeRaw`SELECT id FROM pedido_cabecera WHERE id = ${input.pedidoId}::uuid FOR UPDATE`;
+
         const fila = await tx.pedidoCabecera.findUnique({
           where: { id: input.pedidoId },
-          include: { detalles: true, estadoPedido: { select: { nombre: true } } },
+          include: {
+            pago: true,
+            detalles: true,
+            estadoPedido: { select: { nombre: true } },
+          },
         });
         if (!fila?.estado) {
           throw new TRPCError({ code: "NOT_FOUND", message: "Pedido no encontrado" });
+        }
+        // Rule: an order with a registered payment can never be cancelled in the ordinary flow
+        if (fila.pago) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message:
+              "No se puede cancelar un pedido con pago registrado. Contacta con el administrador para gestionar una posible devolución mediante el procedimiento correspondiente.",
+          });
         }
         const estadoActual = fila.estadoPedido.nombre;
         if (!ESTADOS_CANCELABLES_PEDIDO.includes(estadoActual as never)) {
@@ -567,12 +649,7 @@ export const pedidosRouter = router({
 
   // Client: own; Vendedor: assigned; Admin: all.
   misPedidos: protectedProcedure.query(async ({ ctx }) => {
-    const where =
-      ctx.user.rol === ROLE.ADMIN
-        ? {}
-        : ctx.user.rol === ROLE.VENDEDOR
-          ? { fkVendedor: ctx.user.id }
-          : { fkCliente: ctx.user.id };
+    const where = obtenerFiltroMisPedidos(ctx.user.rol, ctx.user.id);
     const filas = await ctx.db.pedidoCabecera.findMany({
       where,
       orderBy: { creadoEn: "desc" },

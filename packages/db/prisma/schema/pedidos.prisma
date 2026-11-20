@@ -69,6 +69,7 @@ model PedidoCabecera {
   estadoPedido    EstadoPedido @relation(fields: [fkEstado], references: [id], onDelete: Restrict)
   detalles        DetallePedido[]
   historial       HistorialEstadoPedido[]
+  pago            Pago?
 
   @@index([fkCliente])
   @@index([fkVendedor])

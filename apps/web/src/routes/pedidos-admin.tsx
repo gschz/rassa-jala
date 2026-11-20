@@ -14,6 +14,9 @@ import { toast } from "sonner";
 
 import { refreshSession } from "@/lib/auth/http";
 import { getAccessToken, useSession } from "@/lib/auth/session";
+import { useOnline } from "@/hooks/use-online";
+import { PagoModal } from "@/components/pago-modal";
+import { ReciboModal } from "@/components/recibo-modal";
 import { trpc } from "@/utils/trpc";
 
 /**
@@ -87,10 +90,26 @@ function PedidosAdminPage() {
     trpc.usuarios.list.queryOptions({ rol: "Vendedor", estado: true, pageSize: 100 }),
   );
 
+  const isOnline = useOnline();
+  const [pedidoParaPagar, setPedidoParaPagar] = useState<{ id: string; total: string } | null>(
+    null,
+  );
+  const [reciboPedidoId, setReciboPedidoId] = useState<string | null>(null);
+
   const reasignar = useMutation(
     trpc.pedidos.reasignar.mutationOptions({
       onSuccess: () => {
         toast.success("Pedido reasignado");
+        void lista.refetch();
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+
+  const marcarEntregado = useMutation(
+    trpc.pagos.marcarEntregado.mutationOptions({
+      onSuccess: () => {
+        toast.success("Pedido marcado como entregado");
         void lista.refetch();
       },
       onError: (error) => toast.error(error.message),
@@ -169,8 +188,31 @@ function PedidosAdminPage() {
                       {p.vendedorDisplay ?? "sin asignar"}
                     </p>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="font-semibold">${p.total}</span>
+                    {p.estadoNombre === "pendiente" && (
+                      <Button
+                        size="sm"
+                        disabled={!isOnline}
+                        onClick={() => setPedidoParaPagar({ id: p.id, total: p.total })}
+                      >
+                        Registrar Pago
+                      </Button>
+                    )}
+                    {p.estadoNombre === "confirmado" && (
+                      <Button
+                        size="sm"
+                        disabled={!isOnline || marcarEntregado.isPending}
+                        onClick={() => marcarEntregado.mutate({ fkPedido: p.id })}
+                      >
+                        Marcar Entregado
+                      </Button>
+                    )}
+                    {(p.estadoNombre === "confirmado" || p.estadoNombre === "entregado") && (
+                      <Button variant="outline" size="sm" onClick={() => setReciboPedidoId(p.id)}>
+                        Ver Recibo
+                      </Button>
+                    )}
                     <Button
                       variant="outline"
                       size="sm"
@@ -209,6 +251,19 @@ function PedidosAdminPage() {
             </Card>
           ))}
         </div>
+      )}
+
+      {pedidoParaPagar && (
+        <PagoModal
+          pedidoId={pedidoParaPagar.id}
+          total={pedidoParaPagar.total}
+          onClose={() => setPedidoParaPagar(null)}
+          onSuccess={() => void lista.refetch()}
+        />
+      )}
+
+      {reciboPedidoId && (
+        <ReciboModal pedidoId={reciboPedidoId} onClose={() => setReciboPedidoId(null)} />
       )}
     </div>
   );
