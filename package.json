@@ -1,0 +1,63 @@
+{
+  "name": "rassa-jala",
+  "private": true,
+  "workspaces": {
+    "packages": [
+      "apps/*",
+      "packages/*"
+    ],
+    "catalog": {
+      "zod": "^4.5.4",
+      "vite": "npm:@voidzero-dev/vite-plus-core@1.4.0",
+      "typescript": "^6.0.3",
+      "@types/bun": "^1.4.3",
+      "varlock": "1.23.0",
+      "@trpc/server": "^11.19.0",
+      "next-themes": "^0.4.6",
+      "sonner": "^2.0.8",
+      "@trpc/client": "^11.19.0",
+      "tailwindcss": "^4.3.3",
+      "@prisma/client": "^7.10.0"
+    }
+  },
+  "type": "module",
+  "scripts": {
+    "dev": "vp run -r dev",
+    "dev:web": "vp run --filter web dev",
+    "dev:server": "vp run --filter server dev",
+    "dev:supabase": "vp run -r dev:supabase",
+    "dev:server:supabase": "vp run --filter server dev:supabase",
+    "build": "vp run -r build",
+    "check-types": "vp run -r check-types",
+    "test": "bun packages/db/scripts/bootstrap-e2e.ts && vp run --filter '@rassa-jala/db' --filter '@rassa-jala/api' --filter 'web' test",
+    "check": "oxlint && oxfmt --write",
+    "lint": "vp lint",
+    "format": "vp fmt",
+    "staged": "vp staged",
+    "hooks:setup": "vp config",
+    "db:push": "vp run --filter @rassa-jala/db db:push",
+    "db:studio": "vp run --filter @rassa-jala/db db:studio",
+    "db:generate": "vp run --filter @rassa-jala/db db:generate",
+    "db:migrate": "vp run --filter @rassa-jala/db db:migrate",
+    "env:generate": "varlock codegen --path ./apps/web/ && varlock codegen --path ./apps/server/ && varlock codegen --path ./packages/db/",
+    "postinstall": "varlock codegen --path ./apps/web/ && varlock codegen --path ./apps/server/ && varlock codegen --path ./packages/db/"
+  },
+  "dependencies": {
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@rassa-jala/config": "workspace:*",
+    "@types/bun": "catalog:",
+    "oxfmt": "^0.74.0",
+    "oxlint": "1.89.0",
+    "rolldown": "1.2.15",
+    "typescript": "catalog:",
+    "varlock": "catalog:",
+    "vite": "catalog:",
+    "vite-plus": "1.4.0"
+  },
+  "overrides": {
+    "vite": "npm:@voidzero-dev/vite-plus-core@1.4.0"
+  },
+  "packageManager": "bun@1.4.4"
+}

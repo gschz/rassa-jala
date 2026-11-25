@@ -1,0 +1,55 @@
+// Cortes de caja domain — normative sources: docs/database.md §3.5 (corte row),
+// §4.2 (partial unique "corte" vendedor/fecha), §4.6/§4.7 (formula validated 3/3
+// against the legacy delivered data: diferencia = monto_real - monto_teorico),
+// docs/01-audit/backend-audit.md §"Cash reconciliation (cortes)" rules C1-C4, and
+// the legacy blueprint legacy/rassa_back/rassa/blueprints/cortes (concepts only).
+//
+// Conventions (M-1b/M-3): UUID PK + legacy_id, version/actualizado_en/creado_en on
+// every synced row. The partial unique, the formula CHECK and the estado domain
+// CHECK live as raw SQL in the migration (Prisma cannot express them — §5.2).
+//
+// Deliberate fidelity notes (documented in database.md M-15):
+// - Real legacy column name `fk_vendedor_id` kept verbatim via @map (database.md
+//   §7.2 explicitly does NOT adopt the rename — import fidelity). SetNull = legacy
+//   ORM policy: orphan cortes (fk_vendedor NULL) are expected by design — the
+//   partial unique predicate `WHERE fk_vendedor_id IS NOT NULL` mirrors the legacy
+//   UniqueConstraint condition exactly.
+// - `estado` is the legacy lifecycle varchar (abierto/cerrado/cuadrado, model
+//   default 'abierto'); the ONLY legacy creation flow sets 'cerrado' at insert —
+//   the API does the same. No estado lookup table exists (M-4: varchar + CHECK).
+// - NO historial table: legacy cortes had no state-log blueprint (unlike
+//   recolecciones/pedidos) and no transition endpoint — inventing one would create
+//   financial rules the legacy never defined.
+// - NO update/edit lane: legacy CorteViewSet is List+Retrieve+Create+teorico ONLY
+//   (no UpdateModelMixin); teorico/diferencia are frozen creation-time snapshots
+//   (C3) and the serializers mark them read-only.
+// - Money: monto_teorico/monto_real/diferencia numeric(12,2) with the formula
+//   enforced as a DB CHECK (M-2 style, exact in cents — the formula was validated
+//   3/3 on legacy data, database.md §4.6).
+
+model Corte {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  legacyId      Int?     @unique @map("legacy_id")
+  // Legacy SET_NULL: the corte survives the vendedor's deletion (orphan rows stay
+  // out of the partial unique). Nullable with a partial unique exactly like legacy.
+  fkVendedor    String?  @map("fk_vendedor_id") @db.Uuid
+  // Pure calendar date of the business day being closed (Q-22: America/Mazatlan).
+  fecha         DateTime @db.Date
+  // Creation-time snapshots (C3): the API computes teorico from the day's cash
+  // pagos and diferencia = monto_real - monto_teorico; never recomputed later.
+  montoTeorico  Decimal  @map("monto_teorico") @db.Decimal(12, 2)
+  montoReal     Decimal  @map("monto_real") @db.Decimal(12, 2)
+  diferencia    Decimal  @db.Decimal(12, 2)
+  // Legacy lifecycle varchar, model default 'abierto' (the API always writes
+  // 'cerrado' at creation, legacy view parity).
+  estado        String   @default("abierto")
+  version       Int      @default(1)
+  actualizadoEn DateTime @default(now()) @updatedAt @map("actualizado_en") @db.Timestamptz(6)
+  creadoEn      DateTime @default(now()) @map("creado_en") @db.Timestamptz(6)
+  vendedor      Usuario? @relation("CortesVendedor", fields: [fkVendedor], references: [id], onDelete: SetNull)
+
+  @@index([fkVendedor])
+  // Legacy explicit db_index on fecha (database.md §4.4 CONFIRMADO).
+  @@index([fecha])
+  @@map("corte")
+}

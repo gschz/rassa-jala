@@ -1,0 +1,9 @@
+# Mirrors the root bunfig: Bun must not auto-load apps/web/.env, or
+# VITE_SERVER_URL=:3000 wins over the e2e test override (helpers-env.ts).
+env = false
+
+[test]
+# Global teardown for the e2e server fixture: bun test (1.4.4, verified) never
+# runs process exit hooks, so the spawned server must be stopped from a global
+# afterAll registered here (runs once, after ALL test files).
+preload = ["./e2e/preload.ts"]

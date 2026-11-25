@@ -1,0 +1,87 @@
+// Publicaciones semanales domain — normative sources: docs/database.md §3.3
+// (publicacion_semanal, producto_semanal rows), §3.2 (producto_imagen row), Q-25
+// RESUELTA (scope.md §3.2: ISO 8601 calendar weeks 1–53; the ciclo is identified by
+// its Monday date; uniqueness by (agricultor, fecha de ciclo); publication ONLY on
+// Mondays in America/Mazatlan), §6.2 (S2 `publicaciones`: borrador local condicionado,
+// server validation at publish) and §7.1 M-11 (producto_imagen XOR target).
+//
+// Conventions (M-1b/M-3): UUID PK + legacy_id, estado/version/actualizado_en/creado_en
+// on every synced row. Partial unique indexes + CHECK constraints live as raw SQL in
+// the migration (Prisma cannot express them — database.md §5.2).
+//
+// Deliberate deviations from the legacy rows (documented in database.md M-11):
+// - UNIQUE moves from (fk_agricultor, semana) to (fk_agricultor, fecha_ciclo) — Q-25:
+//   the ciclo is its Monday date; semana_iso/anio_iso are DERIVED from fecha_ciclo
+//   in code (CHECK semana_iso 1–53).
+// - producto_semanal.precio gets CHECK >= 0 (legacy had none; publish enforces
+//   precio > 0 / stock > 0 app-level, Pu4 parity).
+// - NO legacy `foto` text column on producto_semanal: images are producto_imagen
+//   references with the M-11 XOR target (one image pipeline, D-1/Q-19).
+// - producto_semanal keeps the legacy lifecycle varchar estado ('activo'/'inactivo',
+//   M-4 CHECK): quitar = soft state change, no hard deletes (database.md §6.3.5).
+
+model PublicacionSemanal {
+  id        String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  legacyId  Int?   @unique @map("legacy_id")
+  // Owner (Q-19: the Agricultor manages its own weekly offers). Legacy SET_NULL: the
+  // publication survives its farmer for audit; scoping stops delivering ownerless rows.
+  fkAgricultor String? @map("fk_agricultor") @db.Uuid
+  // The ciclo's ISO Monday date (Q-25) — a pure calendar date (D-6: day semantics).
+  fechaCiclo   DateTime @map("fecha_ciclo")  @db.Date
+  // Derived from fechaCiclo in code (iso-semana helpers); consistency guarded by the
+  // CHECK semana_iso BETWEEN 1 AND 53 in the migration.
+  semanaIso    Int      @map("semana_iso")
+  anioIso      Int      @map("anio_iso")
+  // Lifecycle varchar (legacy choices borrador/publicado/cerrado/cancelado; M-4 CHECK).
+  estado       String   @default("borrador")
+  version       Int      @default(1)
+  actualizadoEn DateTime @default(now()) @updatedAt @map("actualizado_en") @db.Timestamptz(6)
+  creadoEn      DateTime @default(now()) @map("creado_en") @db.Timestamptz(6)
+  agricultor    Usuario?          @relation(fields: [fkAgricultor], references: [id], onDelete: SetNull)
+  items         ProductoSemanal[]
+
+  @@index([fkAgricultor])
+  @@index([fechaCiclo])
+  @@map("publicacion_semanal")
+}
+
+// One offer of the maestro catalog inside a weekly publication: the price/stock
+// snapshot for the ciclo (the maestro producto.precio=0 data confirms the weekly
+// offer is where the operative price lives — database.md §4.6.5).
+model ProductoSemanal {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  legacyId      Int?     @unique @map("legacy_id")
+  fkPublicacion String   @map("fk_publicacion") @db.Uuid
+  // Maestro must exist and be active (server validation); Restrict = legacy PROTECT.
+  fkProducto    String   @map("fk_producto") @db.Uuid
+  // NOT NULL per legacy (models.py fk_unidad PROTECT without null=True; ER §7
+  // UNIDAD ||--o{ PRODUCTO_SEMANAL): the API inherits the maestro's unidad when the
+  // client does not send one.
+  fkUnidad      String   @map("fk_unidad") @db.Uuid
+  // Money: numeric(10,2), string on the wire (F-29). CHECK >= 0 in migration.
+  precio        Decimal  @db.Decimal(10, 2)
+  // INTEGER stock (module decision: PDF's NUMERIC(12,2) rejected until business
+  // confirms fractional sales). CHECK >= 0 in migration.
+  stock         Int
+  // Legacy lifecycle varchar 'activo'/'inactivo' (M-4 CHECK): quitar = soft state
+  // change; the partial unique (fk_publicacion, fk_producto) WHERE estado='activo'
+  // keeps one ACTIVE offer per maestro product per publication (M-11).
+  estado        String   @default("activo")
+  version        Int      @default(1)
+  actualizadoEn  DateTime @default(now()) @updatedAt @map("actualizado_en") @db.Timestamptz(6)
+  creadoEn       DateTime @default(now()) @map("creado_en") @db.Timestamptz(6)
+  publicacion    PublicacionSemanal @relation(fields: [fkPublicacion], references: [id], onDelete: Cascade)
+  producto       Producto           @relation(fields: [fkProducto], references: [id], onDelete: Restrict)
+  unidad         Unidad             @relation(fields: [fkUnidad], references: [id], onDelete: Restrict)
+  imagenes       ProductoImagen[]
+  // P0 Pedidos (M-12): Restrict — a weekly offer referenced by an order line is business
+  // history and cannot be hard-deleted.
+  detalles       DetallePedido[]
+  // P1-C Mermas (M-17): SetNull — the loss record survives the offer's hard removal.
+  mermas         Merma[]
+
+  @@index([fkPublicacion])
+  @@index([fkProducto])
+  @@index([fkUnidad])
+  @@map("producto_semanal")
+}

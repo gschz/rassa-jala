@@ -1,0 +1,142 @@
+// Pedidos domain — normative sources: docs/database.md §3.4 (pedido_cabecera,
+// detalle_pedido, estado_pedido, historial_estado_pedido rows), §4.1 (FK policy: cliente/
+// vendedor SetNull, estado Restrict, pedido↔detalle Cascade), §6.2 (`pedidos` S2 row:
+// creación en cola, stock/crédito/estado adjudicados en el servidor, PUSH idempotente por
+// doc-id; `historial_pedidos` server-only), §7.1 M-2/M-12 and docs/scope.md §3.2
+// (Q-06 claim atómico, Q-10 crédito familia|usuario, Q-14 dinero HALF_UP 16%).
+//
+// Deliberate deviations from the legacy rows (documented in database.md M-12):
+// - NO folio on pedido_cabecera: the legacy pedido never carried one (folios belong to
+//   pago/recibo — the NEXT module; docs/scope.md §3.1 keeps them out of this one).
+// - NO fecha_expiracion: never written by any flow (legacy B9 defect, not inherited).
+// - detalle_pedido.cantidad hardens legacy's `>= 0` (auto Django) to `> 0` (M-2).
+// - estado_pedido gains a `nombre` column (legacy `tipo_estado` renamed; import maps it)
+//   plus the M-1b/M-3 sync conventions; the legacy unused `activo` row (Q-18/D-4) is
+//   seeded verbatim.
+// - pedido_cabecera keeps a boolean `estado` soft-delete (legacy had none): sync
+//   tombstones need it (database.md §6.3.5); no UI flow flips it today.
+// - cliente_nombre/cliente_telefono (M-12): clientes físicos per PDF §6-7 — no account
+//   rows, fk_cliente NULL, NO credit consumption.
+// - historial_estado_pedido records ONE state per row (fk_estado) instead of the legacy
+//   anterior/nuevo pair: append-only rows make the previous state the prior row.
+
+model EstadoPedido {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  legacyId      Int?     @unique @map("legacy_id")
+  // Legacy `tipo_estado` renamed (M-12); UNIQUE keeps the lookup-by-name seed idempotent.
+  nombre        String   @unique
+  orden         Int      @default(0)
+  // Legacy estado_pedido had NO soft-delete (database.md §3.2); the column exists so the
+  // catalog can deprecate states later — every seeded row is true.
+  estado        Boolean  @default(true)
+  version       Int      @default(1)
+  actualizadoEn DateTime @default(now()) @updatedAt @map("actualizado_en") @db.Timestamptz(6)
+  creadoEn      DateTime @default(now()) @map("creado_en") @db.Timestamptz(6)
+  pedidos       PedidoCabecera[]
+  historial     HistorialEstadoPedido[]
+
+  @@map("estado_pedido")
+}
+
+model PedidoCabecera {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  legacyId        Int?     @unique @map("legacy_id")
+  // M-19 (user decision 2026-11-20): human-readable order folio `PED-000001`.
+  // The legacy pedido never carried one (folios belonged to pago/recibo) — this is
+  // v2's own format. Assigned server-side inside the adjudication tx under the
+  // existing `pedidos_adjudicacion` advisory lock (folio_secuencia row `pedido`);
+  // the migration backfills existing rows sequentially by creado_en.
+  folio           String   @unique
+  // Client: NULL for clientes físicos (M-12) and unclaimed digital orders keep theirs.
+  // SetNull = legacy ORM policy (DA §3): the order survives the account for audit.
+  fkCliente       String?  @map("fk_cliente") @db.Uuid
+  // Q-06: NULL at creation; an active Vendedor claims atomically; Admin reassigns;
+  // in-person orders auto-assign the creating seller. SetNull = legacy policy.
+  fkVendedor      String?  @map("fk_vendedor") @db.Uuid
+  // Restrict = legacy PROTECT (estado_pedido is a lookup; no hard deletes).
+  fkEstado        String   @map("fk_estado") @db.Uuid
+  // Q-14 money snapshots (the ONLY authority — client totals are never trusted).
+  subtotal        Decimal  @db.Decimal(12, 2)
+  iva             Decimal  @db.Decimal(12, 2)
+  total           Decimal  @db.Decimal(12, 2)
+  // M-12: digital (client checkout, online or queued) | presencial (seller in-person).
+  origen          String   @default("digital")
+  // Clientes físicos (M-12, PDF §6-7): account-less persons; consume NO credit.
+  clienteNombre   String?  @map("cliente_nombre")
+  clienteTelefono String?  @map("cliente_telefono")
+  notas           String?
+  // Soft-delete for sync tombstones (§6.3.5); legacy had none — no UI flow flips it.
+  estado          Boolean  @default(true)
+  version         Int      @default(1)
+  actualizadoEn   DateTime @default(now()) @updatedAt @map("actualizado_en") @db.Timestamptz(6)
+  creadoEn        DateTime @default(now()) @map("creado_en") @db.Timestamptz(6)
+  cliente         Usuario?     @relation("PedidosCliente", fields: [fkCliente], references: [id], onDelete: SetNull)
+  vendedor        Usuario?     @relation("PedidosVendedor", fields: [fkVendedor], references: [id], onDelete: SetNull)
+  estadoPedido    EstadoPedido @relation(fields: [fkEstado], references: [id], onDelete: Restrict)
+  detalles        DetallePedido[]
+  historial       HistorialEstadoPedido[]
+  pago            Pago?
+  // P1 Liquidaciones (M-16): the L6 snapshot rows that include this order (Restrict —
+  // a liquidated order is financial history, legacy PROTECT parity).
+  liquidacionesVenta LiquidacionVenta[] @relation("LiquidacionesVenta")
+  // P1-C Mermas (M-6/M-17): Restrict = legacy PROTECT — the loss record is traceable
+  // to the order that fed it.
+  mermas             Merma[]            @relation("MermasPedido")
+
+  @@index([fkCliente])
+  @@index([fkVendedor])
+  @@index([fkEstado])
+  @@index([creadoEn])
+  @@map("pedido_cabecera")
+}
+
+model DetallePedido {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  legacyId          Int?     @unique @map("legacy_id")
+  // Cascade = legacy policy: lines cannot outlive their order.
+  fkPedido          String   @map("fk_pedido") @db.Uuid
+  // Restrict (M-6 §4.1 policy): the weekly offer is business history — never hard-deleted
+  // while a detail references it (legacy ORM had CASCADE here; the audit's own policy
+  // table keeps financial history PROTECT — the stricter action wins, database.md §4.5).
+  fkProductoSemanal String   @map("fk_producto_semanal") @db.Uuid
+  // Snapshot (legacy parity, F-29 note): the product name at purchase time.
+  nombreProducto    String   @map("nombre_producto")
+  // M-2: hardened from legacy's auto `>= 0` to `> 0` (a zero line is meaningless).
+  cantidad          Int
+  // Snapshots (Q-14): precio_unitario numeric(10,2), importe numeric(12,2).
+  precioUnitario    Decimal  @map("precio_unitario") @db.Decimal(10, 2)
+  // Application-enforced (money.ts: importe = precio_unitario × cantidad, exact integer
+  // cents); NOT a DB CHECK per the module checklist — documented in M-12.
+  importe           Decimal  @db.Decimal(12, 2)
+  version           Int      @default(1)
+  actualizadoEn     DateTime @default(now()) @updatedAt @map("actualizado_en") @db.Timestamptz(6)
+  creadoEn          DateTime @default(now()) @map("creado_en") @db.Timestamptz(6)
+  pedido            PedidoCabecera  @relation(fields: [fkPedido], references: [id], onDelete: Cascade)
+  productoSemanal   ProductoSemanal @relation(fields: [fkProductoSemanal], references: [id], onDelete: Restrict)
+
+  @@index([fkPedido])
+  @@index([fkProductoSemanal])
+  @@map("detalle_pedido")
+}
+
+// Append-only state log (legacy B8): server-owned — NO update path exists anywhere; a
+// transition inserts a new row. One state per row (fk_estado); the previous state is the
+// prior row's. fecha/creadoEn both exist: fecha is the transition moment, creado_en the
+// M-1b sync convention.
+model HistorialEstadoPedido {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  legacyId  Int?     @unique @map("legacy_id")
+  fkPedido  String   @map("fk_pedido") @db.Uuid
+  // Restrict = legacy PROTECT on estado_nuevo (the catalog row must survive).
+  fkEstado  String   @map("fk_estado") @db.Uuid
+  fecha     DateTime @default(now()) @db.Timestamptz(6)
+  // Actor = authenticated Usuario id (logical ref, sync_cambio.actor convention — no hard
+  // FK; nullable because seed/import may not know it).
+  actor     String?  @db.Uuid
+  creadoEn  DateTime @default(now()) @map("creado_en") @db.Timestamptz(6)
+  pedido    PedidoCabecera @relation(fields: [fkPedido], references: [id], onDelete: Cascade)
+  estado    EstadoPedido   @relation(fields: [fkEstado], references: [id], onDelete: Restrict)
+
+  @@index([fkPedido])
+  @@map("historial_estado_pedido")
+}

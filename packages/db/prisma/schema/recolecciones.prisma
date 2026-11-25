@@ -1,0 +1,70 @@
+// Recolecciones domain — normative sources: docs/database.md §3.5 (recoleccion +
+// historial_estado_recoleccion rows), §4.2 (partial unique "slot activo"
+// WHERE NOT estado = 'cancelado'), M-4 (estado domain CHECK), docs/scope.md §3.1
+// (R1: the slot uniqueness is enforced by the SERVER/DB — the legacy app-level
+// duplicates in rassa_jala_db are exactly what R1 kills), Q-22 (business TZ
+// America/Mazatlan for the calendar date; instants UTC).
+//
+// Conventions (M-1b/M-3): UUID PK + legacy_id, version/actualizado_en/creado_en on
+// every synced row. The partial unique + domain CHECK live as raw SQL in the
+// migration (Prisma cannot express them — database.md §5.2).
+//
+// Deliberate deviations / fidelity notes (documented in database.md M-14):
+// - NO fk_vendedor on recoleccion: the legacy row (and database.md §3.5) carries
+//   ONLY fk_agricultor (PROTECT NOT NULL). The acting Admin/Vendedor is recorded in
+//   historial_estado_recoleccion.fk_cambiado_por — there is no claim concept here.
+// - NO boolean soft-delete column: `estado` is the legacy lifecycle varchar
+//   (pendiente/en_ruta/recolectado/cancelado, M-4 CHECK); `cancelado` is NOT a
+//   tombstone (database.md §6.2 recoleccion row) — hard deletes never happen.
+// - historial keeps the legacy anterior/nuevo varchar pair verbatim (legacy stored
+//   plain varchars, unlike pedido's estado-FK historial that M-12 reshaped).
+// - hora_inicio/hora_fin stay @db.Time (legacy parity): Prisma materializes them as
+//   Date objects ANCHORED at 1970-01-01 — serialize with .toISOString().slice(11,19).
+
+model Recoleccion {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  legacyId         Int?      @unique @map("legacy_id")
+  // Restrict = legacy PROTECT (NOT NULL): an agricultor with recolecciones cannot be
+  // hard-deleted (the agenda is the farmer's business history).
+  fkAgricultor     String    @map("fk_agricultor") @db.Uuid
+  // Pure calendar date of the appointment (Q-22: business day in America/Mazatlan).
+  fechaRecoleccion DateTime  @map("fecha_recoleccion") @db.Date
+  // Legacy `time` columns, nullable with a both-or-none pair rule (app-level, R2).
+  horaInicio       DateTime? @map("hora_inicio") @db.Time
+  horaFin          DateTime? @map("hora_fin") @db.Time
+  // Lifecycle varchar with the M-4 domain CHECK (pendiente/en_ruta/recolectado/cancelado).
+  estado           String    @default("pendiente")
+  comentarios      String?
+  version          Int       @default(1)
+  actualizadoEn    DateTime  @default(now()) @updatedAt @map("actualizado_en") @db.Timestamptz(6)
+  creadoEn         DateTime  @default(now()) @map("creado_en") @db.Timestamptz(6)
+  agricultor       Usuario   @relation("RecoleccionesAgricultor", fields: [fkAgricultor], references: [id], onDelete: Restrict)
+  historial        HistorialEstadoRecoleccion[]
+
+  @@index([fkAgricultor])
+  // M-5 hot path: the agenda reads and the R1 slot checks filter by date.
+  @@index([fechaRecoleccion])
+  @@map("recoleccion")
+}
+
+// Append-only state log (legacy parity): server-owned — NO update path exists anywhere;
+// a transition inserts one row with the anterior/nuevo pair (create records
+// estadoAnterior = null). fk_cambiado_por keeps the legacy SetNull FK (the auditoría
+// survives the user's deletion).
+model HistorialEstadoRecoleccion {
+  id             String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  legacyId       Int?        @unique @map("legacy_id")
+  // Cascade = legacy policy: the log lives and dies with its recoleccion.
+  fkRecoleccion  String      @map("fk_recoleccion") @db.Uuid
+  // Plain varchars (legacy parity — no estado lookup table exists for recolecciones).
+  estadoAnterior String?     @map("estado_anterior")
+  estadoNuevo    String      @map("estado_nuevo")
+  // SetNull = legacy FK fk_cambiado_por (database.md §3.5 row).
+  fkCambiadoPor  String?     @map("fk_cambiado_por") @db.Uuid
+  creadoEn       DateTime    @default(now()) @map("creado_en") @db.Timestamptz(6)
+  recoleccion    Recoleccion @relation(fields: [fkRecoleccion], references: [id], onDelete: Cascade)
+  cambiadoPor    Usuario?    @relation("HistorialRecoleccionActor", fields: [fkCambiadoPor], references: [id], onDelete: SetNull)
+
+  @@index([fkRecoleccion])
+  @@map("historial_estado_recoleccion")
+}

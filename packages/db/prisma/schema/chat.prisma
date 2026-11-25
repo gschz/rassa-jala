@@ -1,0 +1,73 @@
+// Chat domain — normative sources: docs/database.md §3.6 (mensaje row), §6.2 (S3
+// bidirectional `mensajes` collection), §7.1 M-18 and docs/synchronization.md §6/§8
+// (S3 conflict surface: leido/editado + the 15-min window).
+//
+// The parent tables (`conversacion`, `integrantes`) already exist (M-9, p0-familias) —
+// NOT duplicated here. Attachments (gap-pass-7): `mensaje.tipo`/`archivo_url` plus the
+// `documento` metadata table below; the legacy m2m `mensajes_documentos` is NOT
+// carried (one attachment per message — see the Mensaje comment).
+//
+// M-18 rules extracted from legacy/rassa_back/rassa/blueprints/chat (+ models.py,
+// serializers.py, views.py) — never copied:
+// - leido: per-message boolean, monotonic (legacy ConversacionLeerView PATCH marks
+//   ALL non-own unread rows true — it is never set back to false).
+// - editado: set on content edit; ONLY the author ("No puedes editar un mensaje que
+//   no te pertenece.") WITHIN the legacy window CHAT_EDIT_WINDOW_MINUTES = 15
+//   ("Solo puedes editar mensajes con menos de 15 minutos de antigüedad.").
+// - soft-delete (legacy MensajeInactivarView, "inactivar"): author-only ("No puedes
+//   eliminar un mensaje que no te pertenece."), membership required, same 15-min
+//   window ("Solo se pueden eliminar mensajes de los últimos 15 minutos.").
+
+model Mensaje {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  legacyId       Int?         @unique @map("legacy_id")
+  fkConversacion String       @map("fk_conversacion") @db.Uuid
+  // Legacy fk_emisor (SetNull): the author survives row deletion of the usuario.
+  fkAutor        String?      @map("fk_autor") @db.Uuid
+  contenido      String?      @db.Text
+  // Attachments (M-18/P2 → gap-pass-7): `tipo` keeps the FULL legacy domain
+  // (texto|audio|imagen|video — PDF §4.32 / legacy serializers) so a future lane never
+  // re-migrates the column; the UI only offers texto|imagen TODAY (CHECK in migration).
+  // MINIMAL attachment model (documented decision): v2 attaches AT MOST ONE file per
+  // message, so the /storage/... path (D-1) lives directly on the mensaje row and
+  // `documento` is upload metadata only. The legacy m2m `mensajes_documentos`
+  // (UNIQUE (fk_mensaje, fk_documento), N attachments per message) is NOT carried —
+  // add it only if multi-attachment ever ships.
+  tipo           String       @default("texto") @db.VarChar(10)
+  archivoUrl     String?      @map("archivo_url")
+  leido          Boolean      @default(false)
+  editado        Boolean      @default(false)
+  estado         Boolean      @default(true)
+  version        Int          @default(1)
+  actualizadoEn  DateTime     @default(now()) @updatedAt @map("actualizado_en") @db.Timestamptz(6)
+  creadoEn       DateTime     @default(now()) @map("creado_en") @db.Timestamptz(6)
+  conversacion   Conversacion @relation(fields: [fkConversacion], references: [id], onDelete: Cascade)
+  autor          Usuario?     @relation("MensajesDelAutor", fields: [fkAutor], references: [id], onDelete: SetNull)
+
+  // M-5 hot path: conversation timeline queries (legacy Q-26 proposal).
+  @@index([fkConversacion, creadoEn])
+  @@index([fkAutor])
+  @@map("mensaje")
+}
+
+// Upload metadata (gap-pass-7; legacy documento models.py:725-747 re-modeled for D-1
+// storage): one row per uploaded file, referenced BY PATH from mensaje.archivo_url —
+// no FK to mensaje (the file upload precedes/outsends the message; the storage key is
+// the join). No sync columns: attachment data reaches clients inside the S3 `mensajes`
+// payload (tipo/archivoUrl), not as its own collection.
+model Documento {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  legacyId    Int?     @unique @map("legacy_id")
+  nombre      String
+  tipoMime    String   @map("tipo_mime")
+  tamanoBytes BigInt   @map("tamano_bytes")
+  storageKey  String   @unique @map("storage_key")
+  url         String
+  creadoEn    DateTime @map("creado_en") @default(now()) @db.Timestamptz(6)
+  // Legacy fk_usuario SET_NULL (DA §2): the file outlives its uploader.
+  fkAutor     String?  @map("fk_autor") @db.Uuid
+  autor       Usuario? @relation(fields: [fkAutor], references: [id], onDelete: SetNull)
+
+  @@index([fkAutor])
+  @@map("documento")
+}

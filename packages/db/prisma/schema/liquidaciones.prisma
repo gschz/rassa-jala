@@ -1,0 +1,93 @@
+// Liquidaciones domain (P1-B) — normative sources: docs/database.md §3.5 (liquidacion,
+// liquidacion_venta rows), §4.2 (UNIQUE (fk_agricultor, periodo_inicio, periodo_fin) and
+// UNIQUE (fk_liquidacion, fk_pedido) — both FULL uniques in the delivered DB), §4.6/§4.7
+// (formula validated 5/5: monto_liquidar = monto_ventas - comision; data findings:
+// liquidacion_venta empty 5/5, folios LEGACY-N, liquidaciones 1 y 5 share
+// fk_pago_liquidacion=1 — import-only SEVERE), §7.1 M-16, and the legacy blueprint
+// legacy/rassa_back/rassa/blueprints/liquidaciones (concepts only, never copied).
+//
+// Conventions (M-1b/M-3): UUID PK + legacy_id, version/actualizado_en/creado_en.
+//
+// Deliberate fidelity notes (database.md M-16):
+// - NO folio on liquidacion: the legacy model has none — the dispersion payment's folio
+//   comes from the pago folio machinery (folio_secuencia 'pago', advisory 'pagos_folio').
+// - estado is the legacy lifecycle varchar pendiente/pagada/parcial (model default
+//   'pendiente'); 'parcial' is reserved in ESTADO_CHOICES but NO route produces it — the
+//   only writes are calcular (pendiente) and marcar_pagada (pagada). Domain CHECK in the
+//   migration (M-4). NO historial table: legacy defines no state-log blueprint here and
+//   no transition endpoint beyond the two mutations — inventing one would create
+//   financial rules the legacy never defined.
+// - L7 (any-state anti-duplicate) is the FULL UNIQUE (fk_agricultor, periodo_inicio,
+//   periodo_fin): pendiente/parcial/pagada ALL block a re-calculation of the period
+//   (legacy test: no re-calculate after pagada; parcial counts as duplicate too).
+// - L6 snapshot rows are liquidacion_venta (fk_pedido Restrict = legacy PROTECT; the
+//   line is financial history), each UNIQUE per (liquidacion, pedido).
+// - Money: numeric(12,2) snapshots with the M-2 formula CHECK
+//   (monto_liquidar = monto_ventas - comision, validated 5/5 on legacy data) — exact in
+//   cents; tasa_comision keeps the legacy numeric(5,4) with the 0.10 app-level default
+//   (the request rate is IGNORED — legacy test test_tasa_comision_en_request_es_ignorada).
+// - fk_pago_liquidacion → pago SetNull = legacy ORM policy; the dispersion pago carries
+//   fk_pedido NULL (database.md §3.5/§4.2: multiple NULLs = liquidación pagos), so
+//   pago.fk_pedido is nullable in v2 (M-16 item 3) — M-13 had hardened it NOT NULL.
+
+model Liquidacion {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  legacyId          Int?     @unique @map("legacy_id")
+  // Legacy SET_NULL: the liquidación survives the agricultor's deletion for audit.
+  fkAgricultor      String?  @map("fk_agricultor") @db.Uuid
+  // ISO week period (legacy _rango_semana): periodo_inicio = Monday, periodo_fin =
+  // Sunday (fin_exclusive - 1 day). Calendar dates (Q-22, business TZ America/Mazatlan
+  // for the creado_en date filter — the API bounds the window with limitesDiaNegocio).
+  periodoInicio     DateTime @map("periodo_inicio") @db.Date
+  periodoFin        DateTime @map("periodo_fin") @db.Date
+  // Creation-time frozen snapshots (server-computed in integer cents — money.ts).
+  montoVentas       Decimal  @map("monto_ventas") @db.Decimal(12, 2)
+  // Legacy COMISION_RASSA 0.10 (models.py) — the ONLY rate; never client-sent.
+  tasaComision      Decimal  @map("tasa_comision") @db.Decimal(5, 4) @default(0.10)
+  comision          Decimal  @db.Decimal(12, 2)
+  montoLiquidar     Decimal  @map("monto_liquidar") @db.Decimal(12, 2)
+  // The dispersion pago created by marcar_pagada (fk_pedido NULL, monto = monto_liquidar).
+  fkPagoLiquidacion String?  @map("fk_pago_liquidacion") @db.Uuid
+  // Legacy lifecycle varchar; 'parcial' reserved (ESTADO_CHOICES) but never produced.
+  estado            String   @default("pendiente")
+  version           Int      @default(1)
+  actualizadoEn     DateTime @default(now()) @updatedAt @map("actualizado_en") @db.Timestamptz(6)
+  creadoEn          DateTime @default(now()) @map("creado_en") @db.Timestamptz(6)
+  agricultor        Usuario? @relation("LiquidacionesAgricultor", fields: [fkAgricultor], references: [id], onDelete: SetNull)
+  // Legacy many-to-one (Django ForeignKey): structurally a pago COULD reference several
+  // liquidaciones — the delivered data proves it happened (liquidaciones 1 y 5 share
+  // fk_pago_liquidacion=1, SEVERE §4.6/§4.7, fixed at import). v2 does NOT invent a
+  // unique here; the double-payment guard is L7 (period unique) + L8 (row lock).
+  pagoLiquidacion   Pago?    @relation("LiquidacionPago", fields: [fkPagoLiquidacion], references: [id], onDelete: SetNull)
+  ventas            LiquidacionVenta[]
+
+  // L7: full UNIQUE, ANY state (legacy UniqueConstraint models.py:961-968) — a pagada
+  // liquidación makes the period terminal (no re-calculation, no double payment).
+  @@unique([fkAgricultor, periodoInicio, periodoFin], map: "unique_liquidacion_periodo")
+  @@index([fkAgricultor])
+  @@index([estado])
+  @@map("liquidacion")
+}
+
+// L6 snapshot: which delivered pedidos (and their agricultor-line amounts) fed the
+// calculation — the detail stays stable even if a pedido changes state later.
+model LiquidacionVenta {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  legacyId      Int?        @unique @map("legacy_id")
+  fkLiquidacion String      @map("fk_liquidacion") @db.Uuid
+  fkPedido      String      @map("fk_pedido") @db.Uuid
+  // Snapshot of THIS agricultor's lines' importe in the pedido (multi-agricultor split:
+  // lines of other agricultores in shared pedidos NEVER count).
+  montoAportado Decimal     @map("monto_aportado") @db.Decimal(12, 2)
+  version       Int         @default(1)
+  actualizadoEn DateTime    @default(now()) @updatedAt @map("actualizado_en") @db.Timestamptz(6)
+  creadoEn      DateTime    @default(now()) @map("creado_en") @db.Timestamptz(6)
+  liquidacion   Liquidacion @relation(fields: [fkLiquidacion], references: [id], onDelete: Cascade)
+  // Restrict = legacy PROTECT: the order is financial history once liquidated.
+  pedido PedidoCabecera @relation("LiquidacionesVenta", fields: [fkPedido], references: [id], onDelete: Restrict)
+
+  @@unique([fkLiquidacion, fkPedido], map: "unique_liquidacion_venta_pedido")
+  @@index([fkLiquidacion])
+  @@index([fkPedido])
+  @@map("liquidacion_venta")
+}

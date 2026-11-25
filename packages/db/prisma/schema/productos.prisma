@@ -1,0 +1,73 @@
+// Productos domain — normative sources: docs/database.md §3.2 (producto, producto_imagen
+// rows: FK categoria PROTECT, unidad PROTECT nullable, producto_imagen CASCADE), §4.2/§7
+// (partial unique principal per producto, orden >= 0) and docs/scope.md §3.2 Q-19
+// (producto maestro = CRUD exclusivo Admin; the weekly offers live in publicaciones.prisma
+// — publicacion_semanal/producto_semanal, Q-19's Agricultor-owned side).
+//
+// M-1b/M-3 conventions: UUID PK + legacy_id (adoption), estado/version/actualizado_en/
+// creado_en on every synced row.
+//
+// D-1 (architecture.md §11): legacy Google Drive image pipelines are replaced by a
+// storage adapter. That removes the Drive state machine entirely — there is NO
+// `eliminar_pendiente` column (nor `drive_file_id`): the row is a plain reference to a
+// stored object (storage_key), hard-deleted together with the adapter object on
+// imagenes.delete. The outbox 'delete' operacion is the single deletion signal for
+// clients (database.md §6.2's "no replicar eliminar_pendiente como tombstone" concern
+// disappears with the column itself).
+
+model Producto {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  legacyId      Int?     @unique @map("legacy_id")
+  nombre        String
+  descripcion   String?
+  // Restrict = legacy PROTECT: a categoria/unidad with products cannot be hard-deleted
+  // (catalogs are soft-delete only anyway).
+  fkCategoria   String   @map("fk_categoria") @db.Uuid
+  fkUnidad      String?  @map("fk_unidad") @db.Uuid
+  estado        Boolean  @default(true)
+  version       Int      @default(1)
+  actualizadoEn DateTime @default(now()) @updatedAt @map("actualizado_en") @db.Timestamptz(6)
+  creadoEn      DateTime @default(now()) @map("creado_en") @db.Timestamptz(6)
+  categoria     CategoriaProducto @relation(fields: [fkCategoria], references: [id], onDelete: Restrict)
+  unidad        Unidad?           @relation(fields: [fkUnidad], references: [id], onDelete: Restrict)
+  imagenes      ProductoImagen[]
+  productosSemanales ProductoSemanal[]
+
+  @@index([fkCategoria])
+  @@index([fkUnidad])
+  @@map("producto")
+}
+
+// Reference to one stored image (D-1 storage adapter). NOT business history: deleting an
+// image is a physical delete (the binary is the source of truth, the row is a pointer).
+// Migration adds database.md §4.2's partial unique: at most ONE principal per producto.
+// M-11: the row targets EXACTLY ONE owner — fk_producto (maestro) XOR fk_producto_semanal
+// (weekly offer item), enforced by the "producto_imagen_objetivo_unico" CHECK plus one
+// principal partial unique per target (the weekly item shares the same image pipeline).
+model ProductoImagen {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  legacyId      Int?     @unique @map("legacy_id")
+  // Cascade = legacy policy: the reference row cannot outlive its product. Nullable:
+  // M-11 XOR — when fk_producto_semanal is set, this side is NULL.
+  fkProducto         String?  @map("fk_producto") @db.Uuid
+  // M-11: weekly-offer item target (the Agricultor's own item photos share the D-1
+  // pipeline). Cascade: the item row cannot outlive its publication.
+  fkProductoSemanal  String?  @map("fk_producto_semanal") @db.Uuid
+  // Adapter key, e.g. "productos/<uuid>.png" — unique by construction (uuid per file).
+  storageKey    String   @unique @map("storage_key")
+  // Served URL: "/storage/<key>" with the dev local driver; a Supabase public URL at
+  // final integration (D-1). Clients render ENV.VITE_SERVER_URL + url.
+  url           String
+  orden         Int      @default(0)
+  principal     Boolean  @default(false)
+  estado        Boolean  @default(true)
+  version       Int      @default(1)
+  actualizadoEn DateTime @default(now()) @updatedAt @map("actualizado_en") @db.Timestamptz(6)
+  creadoEn      DateTime @default(now()) @map("creado_en") @db.Timestamptz(6)
+  producto       Producto?          @relation(fields: [fkProducto], references: [id], onDelete: Cascade)
+  productoSemanal ProductoSemanal?  @relation(fields: [fkProductoSemanal], references: [id], onDelete: Cascade)
+
+  @@index([fkProducto])
+  @@index([fkProductoSemanal])
+  @@map("producto_imagen")
+}

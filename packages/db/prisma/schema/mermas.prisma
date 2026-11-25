@@ -1,0 +1,79 @@
+// Mermas domain (P1-C) — normative sources: docs/database.md §3.5 (merma,
+// decision_merma rows), §4.1 (FK policy: decision Restrict = legacy PROTECT,
+// producto_semanal SetNull, pedido Restrict = M-6 PROTECT), §4.7 (cantidad auto
+// CHECK >= 0), §7.1 M-6 (fk_pedido: present in the audited model, migration 0027
+// NEVER applied in the delivered DB — v2 includes it NOT NULL per M-6) and
+// §7.1 M-17 (v2 conventions on a legacy catalog), and the legacy blueprint
+// legacy/rassa_back/rassa/blueprints/waste (concepts only, never copied).
+//
+// Conventions (M-1b/M-3): UUID PK + legacy_id, version/actualizado_en/creado_en.
+//
+// Deliberate fidelity notes (database.md M-17):
+// - decision_merma is a PLAIN CATALOG (id, decision, creado_en, estado) — the legacy
+//   defines NO state machine, NO transitions and NO decision lane on the merma; the
+//   only state change is the Admin soft-delete (destroy → estado=false). v2 adds a
+//   UNIQUE on `decision` (the legacy enforces it app-level via UniqueValidator;
+//   tipo_pago/estado_pedido parity — keeps the by-name seed upsert idempotent).
+// - merma is append-only: the legacy ViewSet is List+Retrieve+Create (no Update/
+//   Destroy mixin) — snapshots are final at registration; NO edit or delete lane.
+// - cantidad hardens the legacy auto CHECK `>= 0` (Django PositiveIntegerField) to
+//   `> 0` (M-2 parity with detalle_pedido): the serializer rejects <= 0 ("La cantidad
+//   debe ser mayor a 0."), so the DB CHECK only ever guards direct writes.
+// - fk_pedido NOT NULL (legacy test test_merma_db_requiere_fk_pedido asserts the
+//   IntegrityError) with Restrict = legacy PROTECT: the merma is traceable to the
+//   order that fed it (M-2 rule + financial traceability, M-6 items 4–5).
+
+model DecisionMerma {
+  id       String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  legacyId Int?    @unique @map("legacy_id")
+  // Legacy CharField(50) + UniqueValidator (app-level); UNIQUE in v2 (tipo_pago
+  // parity) so the seed/imports converge by NAME.
+  decision String  @unique @db.VarChar(50)
+  // Soft-delete only: the Admin destroy lane flips this to false (legacy parity);
+  // inactive decisions are rejected by the merma registration rule.
+  estado   Boolean @default(true)
+  version       Int      @default(1)
+  actualizadoEn DateTime @default(now()) @updatedAt @map("actualizado_en") @db.Timestamptz(6)
+  creadoEn      DateTime @default(now()) @map("creado_en") @db.Timestamptz(6)
+  mermas Merma[]
+
+  @@index([estado])
+  @@map("decision_merma")
+}
+
+// Append-only loss record (legacy List+Retrieve+Create parity — no edit lane): the
+// stock decrement happens AT REGISTRATION inside the same tx (legacy create parity).
+model Merma {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  legacyId Int?   @unique @map("legacy_id")
+  // Legacy SET_NULL: the record survives the weekly offer's hard removal for audit.
+  fkProductoSemanal String? @map("fk_producto_semanal") @db.Uuid
+  // M-2 hardened from the legacy auto `>= 0` to `> 0` (serializer rejects <= 0).
+  cantidad          Int
+  // Legacy CharField(300), required.
+  motivo            String  @db.VarChar(300)
+  // Optional free text; "" → null on the wire (legacy serializer parity).
+  comentarios       String?
+  // Restrict = legacy PROTECT: the decision catalog is shared history.
+  fkDecision        String  @map("fk_decision") @db.Uuid
+  // M-6: NOT NULL + Restrict = legacy PROTECT (0027 never applied in the delivered
+  // DB; the audited model declares it) — M-2 ownership rule + financial traceability.
+  fkPedido          String  @map("fk_pedido") @db.Uuid
+  // Soft-delete boolean (legacy estado; the delivered DB filters estado=true on
+  // reads). No API writer exists in the legacy for it — import/deprecation only.
+  estado            Boolean @default(true)
+  version       Int      @default(1)
+  actualizadoEn DateTime @default(now()) @updatedAt @map("actualizado_en") @db.Timestamptz(6)
+  creadoEn      DateTime @default(now()) @map("creado_en") @db.Timestamptz(6)
+  productoSemanal ProductoSemanal? @relation(fields: [fkProductoSemanal], references: [id], onDelete: SetNull)
+  decision DecisionMerma @relation(fields: [fkDecision], references: [id], onDelete: Restrict)
+  pedido   PedidoCabecera @relation("MermasPedido", fields: [fkPedido], references: [id], onDelete: Restrict)
+
+  // Hot paths: vendedor scoping joins through fk_pedido; resumen/report grouping
+  // filters by decision and product; list ordering is creado_en desc.
+  @@index([fkPedido])
+  @@index([fkDecision])
+  @@index([fkProductoSemanal])
+  @@index([creadoEn])
+  @@map("merma")
+}

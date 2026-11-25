@@ -1,0 +1,37 @@
+// Sistema domain — the `logs` audit trail (M-7, database.md §3.7, S4 server-only):
+// append-only, written INSERT-ONLY from the API (no update/delete path exists in the
+// app; never synced, never emitted to clients — database.md §6.2/§6.3.7).
+// Normative sources: docs/database.md §3.7 + M-7 (inet → varchar(45)), PDF técnico
+// FASE 4.16 (quién, acción, IP, dispositivo, cuándo), legacy DA §2 (models.py:628-644:
+// fk_usuario SET_NULL nullable, ip GenericIPAddressField, dispositivo varchar(200)).
+//
+// Deviations from legacy/PDF (documented, database.md §3.7):
+// - UUID PK (M-3) instead of id_log serial; legacy_id kept for import fidelity.
+// - `accion` renames the legacy free-text `descripcion` (the API logs short action
+//   keys); `entidad`/`entidad_id` add the affected-object pointer it lacked.
+// - `ip` varchar(45) per M-7 (Prisma has no `inet`; IPv4/IPv6 fit in 45).
+// - One `creado_en` timestamptz replaces the legacy separate hora/fecha columns.
+// - NO `estado` soft-delete (append-only; purge is an S4 ops decision) and NO sync
+//   columns (version/actualizado_en/outbox): S4 is never a client collection.
+
+model Log {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  legacyId    Int?     @unique @map("legacy_id")
+  // Nullable + SetNull: the audit row survives the usuario purge (legacy migration
+  // 0003_log_fk_usuario_set_null parity) — test-user cleanup must not orphan-fail.
+  fkUsuario   String?  @map("fk_usuario") @db.Uuid
+  accion      String
+  entidad     String?
+  entidadId   String?  @map("entidad_id")
+  ip          String   @db.VarChar(45)
+  // User-agent truncated app-side to fit (legacy varchar(200)).
+  dispositivo String   @db.VarChar(200)
+  detalle     Json?
+  creadoEn    DateTime @map("creado_en") @default(now()) @db.Timestamptz(6)
+  usuario     Usuario? @relation(fields: [fkUsuario], references: [id], onDelete: SetNull)
+
+  @@index([fkUsuario])
+  @@index([creadoEn(sort: Desc)])
+  @@index([accion])
+  @@map("logs")
+}

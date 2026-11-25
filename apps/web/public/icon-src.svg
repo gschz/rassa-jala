@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="RassaJala">
+  <!-- Brand icon source (hand-drawn, paths only — no fonts/external images).
+       Background: Forest #1F4D36 (mid-dark green keeps contrast on both light and
+       dark tab bars; the near-black #111B15 dark-mode bg reads as a black square).
+       Glyph: two sage leaves (#79A987) + pale stem (#E8F1EB), readable at 16px. -->
+  <rect width="512" height="512" rx="112" fill="#1F4D36"/>
+  <g transform="translate(0 -38)">
+    <path d="M256 396 C 256 356 256 316 256 268" fill="none" stroke="#E8F1EB" stroke-width="30" stroke-linecap="round"/>
+    <path d="M246 320 C 168 320 116 264 112 192 C 198 198 250 248 246 320 Z" fill="#79A987"/>
+    <path d="M266 320 C 344 320 396 264 400 192 C 314 198 262 248 266 320 Z" fill="#79A987"/>
+  </g>
+</svg>

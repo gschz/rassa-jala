@@ -1,0 +1,3 @@
+{
+  "extends": "@rassa-jala/config/tsconfig.base.json"
+}

@@ -1,0 +1,6 @@
+env = false
+
+[test]
+# `bun test` discovery: never descend into legacy (read-only reference sources
+# with their own *.test.ts files) or dev storage binaries.
+pathIgnorePatterns = ["legacy/**", "storage/**"]
